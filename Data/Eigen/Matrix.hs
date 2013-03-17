@@ -12,12 +12,14 @@ module Data.Eigen.Matrix (
     identity,
     constant,
     -- * Accessing matrix data
+    cols,
+    rows,
     coeff,
+    minCoeff,
+    maxCoeff,
     col,
     row,
     block,
-    minCoeff,
-    maxCoeff,
     topRows,
     bottomRows,
     leftCols,
@@ -41,6 +43,7 @@ module Data.Eigen.Matrix (
 import Data.List (intercalate)
 import Text.Printf
 import Foreign.Ptr
+import Foreign.Storable
 import Foreign.ForeignPtr
 import Foreign.C.Types
 import Foreign.Marshal.Array
@@ -97,15 +100,23 @@ identity size = Matrix size size $ runST $ do
         VSM.write vm (n * size + n) 1
     VS.unsafeFreeze vm
 
--- | return matrix coeff at specific row and col
+-- | number of rows for the matrix
+rows :: Matrix -> Int
+rows = m_rows
+
+-- | number of columns for the matrix
+cols :: Matrix -> Int
+cols = m_cols
+
+-- | matrix coefficient at specific row and col
 coeff :: Int -> Int -> Matrix -> Double
 coeff row col Matrix{..} = cast $ m_vals VS.! (col * m_rows + row)
 
--- | return list of coeffs for the given col
+-- | list of coefficients for the given col
 col :: Int -> Matrix -> [Double]
 col c m@Matrix{..} = [coeff r c m | r <- [0..pred m_rows]]
 
--- | return list of coeffs for the given row
+-- | list of coefficients for the given row
 row :: Int -> Matrix -> [Double]
 row r m@Matrix{..} = [coeff r c m | c <- [0..pred m_cols]]
 
@@ -114,27 +125,27 @@ block :: Int -> Int -> Int -> Int -> Matrix -> Matrix
 block startRow startCol blockRows blockCols m = fromList $
     [[coeff row col m | col <- take blockCols [startCol..]] | row <- take blockRows [startRow..]]
 
--- | return the maximum of all coeffs of matrix
+-- | the maximum of all coefficients of matrix
 maxCoeff :: Matrix -> Double
 maxCoeff Matrix{..} = cast $ VS.maximum m_vals
 
--- | return the minimum of all coeffs of matrix
+-- | the minimum of all coefficients of matrix
 minCoeff :: Matrix -> Double
 minCoeff Matrix{..} = cast $ VS.minimum m_vals
 
--- | return top n rows of matrix
+-- | top n rows of matrix
 topRows :: Int -> Matrix -> Matrix
 topRows rows m@Matrix{..} = block 0 0 rows m_cols m
 
--- | return bottom n rows of matrix
+-- | bottom n rows of matrix
 bottomRows :: Int -> Matrix -> Matrix
 bottomRows rows m@Matrix{..} = block (m_rows - rows) 0 rows m_cols m
 
--- | return left n columns of matrix
+-- | left n columns of matrix
 leftCols :: Int -> Matrix -> Matrix
 leftCols cols m@Matrix{..} = block 0 0 m_rows cols m
 
--- | return right n columns of matrix
+-- | right n columns of matrix
 rightCols :: Int -> Matrix -> Matrix
 rightCols cols m@Matrix{..} = block 0 (m_cols - cols) m_rows cols m
 
@@ -146,7 +157,7 @@ binop f lhs rhs = unsafePerformIO $ do
     _ <- f ret lhs rhs
     freeze ret
 
--- | construct matrix from a list of rows, column number is detected as maximum row length
+-- | construct matrix from a list of rows, column count is detected as maximum row length
 fromList :: [[Double]] -> Matrix
 fromList list = Matrix rows cols vals where
     rows = length list
@@ -202,7 +213,7 @@ freeze mm = MM.with mm $ \pm -> do
     src <- c_data pm
     fp <- mallocForeignPtrArray len
     withForeignPtr fp $ \dst -> copyArray dst src len
-    return Matrix {
+    Matrix {
         m_rows = rows,
         m_cols = cols,
         m_vals = VS.unsafeFromForeignPtr fp 0 len
@@ -210,18 +221,18 @@ freeze mm = MM.with mm $ \pm -> do
 
 -- | create mutable copy of the matrix
 thaw :: Matrix -> IO MM.MMatrix
-thaw Matrix{..} = withForeignPtr (fst $ VS.unsafeToForeignPtr0 m_vals) $ \src -> do
+thaw Matrix{..} = withForeignPtr fp $ \src -> do
     let len = m_rows * m_cols
     pm <- c_create (cast m_rows) (cast m_cols)
     dst <- c_data pm
-    copyArray dst src len
-    fp <- newForeignPtr c_destroy pm
-    return $ MM.MMatrix fp
+    copyArray dst (plusPtr src $ off * sizeOf (undefined :: CDouble)) len
+    fmap MM.MMatrix $ newForeignPtr c_destroy pm
+    where (fp, off, _) = VS.unsafeToForeignPtr m_vals
 
--- | apply mutable operation to the mutable copy of the matrix and return snapshot of this copy
+-- | apply mutable operation to the mutable copy of the matrix and snapshot of this copy
 modify :: (MM.MMatrix -> IO ()) -> Matrix -> Matrix
 modify f m = unsafePerformIO $ thaw m >>= \mm -> f mm >> freeze mm
 
--- | apply mutable operation to the mutable copy of the matrix and return operation result
+-- | apply foreign operation to the mutable copy of the matrix and operation result
 with :: Matrix -> (Ptr C_MatrixXd -> IO a) -> IO a
 with m f = thaw m >>= \mm -> MM.with mm f

@@ -2,10 +2,6 @@
 
 {- |
 
-/This description is a based on/ <http://eigen.tuxfamily.org/dox/TutorialLinearAlgebra.html> /tutorial/
-
-Basic linear solving
-
 The problem: You have a system of equations, that you have written as a single matrix equation
 
 @Ax = b@
@@ -15,22 +11,17 @@ Where A and b are matrices (b could be a vector, as a special case). You want to
 The solution: You can choose between various decompositions, depending on what your matrix A looks like, and depending on whether you favor speed or accuracy. However, let's start with an example that works in all cases, and is a good compromise:
 
 @
-import "Data.Eigen.Matrix"
-import "Data.Eigen.LA"
+import Data.Eigen.Matrix
+import Data.Eigen.LA
 
 main = do
     let
         a = fromList [[1,2,3], [4,5,6], [7,8,10]]
         b = fromList [[3],[3],[4]]
         x = solve ColPivHouseholderQR a b
-    putStrLn \"Here is the matrix A:\"
-    print a
-
-    putStrLn \"Here is the vector b:\"
-    print b
-
-    putStrLn \"The solution is:\"
-    print x
+    putStrLn \"Here is the matrix A:\" >> print a
+    putStrLn \"Here is the vector b:\" >> print b
+    putStrLn \"The solution is:\" >> print x
 @
 
 produces the following output
@@ -57,14 +48,16 @@ Matrix 3x1
 
 Checking if a solution really exists: Only you know what error margin you want to allow for a solution to be considered valid.
 
-You can compute relative error using @norm (ax - b) / norm b@ formula or use 'relativeError' function which provides the same but slightly more efficient calculation.
+You can compute relative error using @norm (ax - b) / norm b@ formula or use 'relativeError' function which provides the same calculation implemented slightly more efficient.
 
 -}
 
 module Data.Eigen.LA (
+    -- * Basic linear solving
     Decomposition(..),
     solve,
     relativeError,
+    -- * Multiple linear regression
     linearRegression
 ) where
 
@@ -96,14 +89,14 @@ LLT                     Positive definite                   +++     +
 LDLT                    Positive or negative semidefinite   +++     ++
 JacobiSVD               None                                -       +++
 
-The best way to do least squares solving for square matrixes is with a SVD decomposition (JacobiSVD)
+The best way to do least squares solving for square matrices is with a SVD decomposition (JacobiSVD)
 @
 -}
 
 data Decomposition
-    -- | LU decomposition of a matrix with partial pivoting, and related features
+    -- | LU decomposition of a matrix with partial pivoting.
     = PartialPivLU
-    -- | LU decomposition of a matrix with complete pivoting, and related features
+    -- | LU decomposition of a matrix with complete pivoting.
     | FullPivLU
     -- | Householder QR decomposition of a matrix.
     | HouseholderQR
@@ -111,14 +104,14 @@ data Decomposition
     | ColPivHouseholderQR
     -- | Householder rank-revealing QR decomposition of a matrix with full pivoting.
     | FullPivHouseholderQR
-    -- | Standard Cholesky decomposition (LL^T) of a matrix and associated features.
+    -- | Standard Cholesky decomposition (LL^T) of a matrix.
     | LLT
     -- | Robust Cholesky decomposition of a matrix with pivoting.
     | LDLT
     -- | Two-sided Jacobi SVD decomposition of a rectangular matrix.
     | JacobiSVD deriving (Show, Enum)
 
--- | /solve d a b/ finds a solution x of @ax = b@ equation using decomposition @d@
+-- | [x = solve d a b] finds a solution @x@ of @ax = b@ equation using decomposition @d@
 solve :: Decomposition -> Matrix -> Matrix -> Matrix
 solve d a b = (`modify` empty) $ \x ->
     with a $ \pa ->
@@ -126,7 +119,7 @@ solve d a b = (`modify` empty) $ \x ->
     MM.with x $ \px ->
         call $ c_solve (fromIntegral $ fromEnum d) px pa pb
 
--- | /relativeError x a b/ computes @norm (ax - b) / norm b@ where norm is L2 norm
+-- | [e = relativeError x a b] computes @norm (ax - b) / norm b@ where @norm@ is L2 norm
 relativeError :: Matrix -> Matrix -> Matrix -> Double
 relativeError x a b = unsafePerformIO $
     with x $ \px ->
@@ -136,13 +129,31 @@ relativeError x a b = unsafePerformIO $
         call $ c_relativeError pr px pa pb
         fmap cast $ peek pr
 
-{- | compute multiple linear regression @y = a1 x1 + a2 x2 + ... + an xn + b@ using 'ColPivHouseholderQR' decomposition
+{- | 
+[(coeffs, error) = linearRegression points] computes multiple linear regression @y = a1 x1 + a2 x2 + ... + an xn + b@ using 'ColPivHouseholderQR' decomposition
 
-    * argument is a list of point in format @[y, x1..xn]@
+* point format is @[y, x1..xn]@
 
-    * return value is (coeffs, relative error)
+* coeffs format is @[b, a1..an]@
 
-    * coeffs format is @[b, a1..an]@
+* error is calculated using 'relativeError'
+
+@
+import Data.Eigen.LA
+main = print $ linearRegression [
+    [-4.32, 3.02, 6.89],
+    [-3.79, 2.01, 5.39],
+    [-4.01, 2.41, 6.01],
+    [-3.86, 2.09, 5.55],
+    [-4.10, 2.58, 6.32]]
+ @
+
+ produces the following output
+
+ @
+ ([-2.3466569233817127,-0.2534897541434826,-0.1749653335680988],1.8905965120153139e-3)
+ @
+ 
 -}
 linearRegression :: [[Double]] -> ([Double], Double)
 linearRegression points = (coeffs, e) where

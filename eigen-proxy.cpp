@@ -32,7 +32,7 @@ const char* eigen_sub(MatrixXd& ret, const MatrixXd& lhs, const MatrixXd& rhs) {
 const char* eigen_mul(MatrixXd& ret, const MatrixXd& lhs, const MatrixXd& rhs) { GUARD_START ret = lhs * rhs; GUARD_END }
 double eigen_norm(const MatrixXd& m) { return m.norm(); }
 double eigen_squaredNorm(const MatrixXd& m) { return m.squaredNorm(); }
-double blueNorm(const MatrixXd& m) { return m.squaredNorm(); }
+double eigen_blueNorm(const MatrixXd& m) { return m.squaredNorm(); }
 // double mstableNorm(const MatrixXd& m) { return m.stableNorm(); }
 double eigen_hypotNorm(const MatrixXd& m) { return m.hypotNorm(); }
 double eigen_sum(const MatrixXd& m) { return m.sum(); }

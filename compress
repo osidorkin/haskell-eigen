@@ -1,0 +1,1 @@
+cd .. && tar -zcvf eigen-1.0.0.tar.gz eigen-1.0.0/Data eigen-1.0.0/eigen3 eigen-1.0.0/eigen.* eigen-1.0.0/LICENSE eigen-1.0.0/README eigen-1.0.0/Setup.hs
