@@ -12,7 +12,7 @@ description:    This module provides Haskell binding for Eigen C++ library.
                 .
                 Virtually any software may use Eigen. For example, closed-source software may use Eigen without having to disclose its own source code. Many proprietary and closed-source software projects are using Eigen right now, as well as many BSD-licensed projects.
                 .
-                Note that ghci may fire \"@unknown symbol ___dso_handle@\" due to dynamic linking with C++ runtime. Consider to use ghc --make instead. Please let me know if you know any workaround for this issue.
+                Note that ghci may fail with \"@unknown symbol ___dso_handle@\" error due to dynamic linking with C++ runtime. Consider to use ghc --make instead. Please let me know if you know any workaround for this issue.
                 .
                 Some parts of documentation strings are based or replicate original Eigen documentation which is available at <http://eigen.tuxfamily.org/dox/>.
 category:       Data
