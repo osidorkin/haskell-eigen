@@ -15,7 +15,7 @@ description:    This module provides Haskell binding for Eigen C++ library.
                 Note that ghci may fail with \"@unknown symbol ___dso_handle@\" error due to dynamic linking with C++ runtime. Consider to use ghc --make instead. Please let me know if you know any workaround for this issue.
                 .
                 Some parts of documentation strings are based or replicate original Eigen documentation which is available at <http://eigen.tuxfamily.org/dox/>.
-category:       Data
+category:       Data, Math, Algebra
 license:        BSD3
 license-file:   LICENSE
 copyright:      (c) 2013, Oleg Sidorkin

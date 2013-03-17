@@ -213,7 +213,7 @@ freeze mm = MM.with mm $ \pm -> do
     src <- c_data pm
     fp <- mallocForeignPtrArray len
     withForeignPtr fp $ \dst -> copyArray dst src len
-    Matrix {
+    return Matrix {
         m_rows = rows,
         m_cols = cols,
         m_vals = VS.unsafeFromForeignPtr fp 0 len
