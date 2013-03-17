@@ -9,9 +9,14 @@ license-file:    LICENSE
 copyright:       (c) 2013, Oleg Sidorkin
 author:          Oleg Sidorkin <oleg.sidorkin@gmail.com>
 maintainer:      Oleg Sidorkin <oleg.sidorkin@gmail.com>
-cabal-version:   >= 1.2.0
+cabal-version:   >= 1.6
 build-type:      Simple
 tested-with:     GHC ==7.4.1
+
+source-repository head
+  type:     git
+  location: git://github.com/osidorkin/haskell-eigen.git
+
 
 library
     exposed-modules:    Data.Eigen.LA
@@ -20,10 +25,9 @@ library
                         Data.Eigen.Internal
                         Data.Eigen.Parallel
 
-    ghc-options:        -O2 -Wall -fno-warn-name-shadowing
-    cc-options:         -O3
-    build-depends:      base,
-                        vector
+    ghc-options:        -Wall -fno-warn-name-shadowing
+    build-depends:      base >= 3 && < 5,
+                        vector >= 0.9 && < 0.10
 
     include-dirs:       eigen3
     c-sources:          eigen-proxy.cpp
