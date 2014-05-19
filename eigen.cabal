@@ -1,7 +1,7 @@
 name:           eigen
 version:        1.0.0
 homepage:       https://github.com/osidorkin/haskell-eigen
-synopsis:       Haskel binding for Eigen library
+synopsis:       Haskell binding for Eigen library
 description:    This module provides Haskell binding for Eigen C++ library.
                 Eigen is a C++ template library for linear algebra: matrices, vectors, numerical solvers, and related algorithms.
                 Eigen home page is <http://eigen.tuxfamily.org/>.
