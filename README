@@ -1,4 +1,0 @@
-This module provides Haskell binding for Eigen C++ library.
-Some parts of documentation strings replicates original Eigen documentation.
-
-Oleg Sidorkin 

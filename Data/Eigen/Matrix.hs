@@ -1,10 +1,11 @@
-{-# LANGUAGE RecordWildCards, MultiParamTypeClasses #-}
+{-# LANGUAGE RecordWildCards, MultiParamTypeClasses, Rank2Types #-}
 module Data.Eigen.Matrix (
     -- * Matrix type
     Matrix(..),
     -- * Matrix conversions
     fromList,
     toList,
+    generate,
     -- * Standard matrices and special cases
     empty,
     zero,
@@ -28,32 +29,37 @@ module Data.Eigen.Matrix (
     norm,
     squaredNorm,
     determinant,
+    -- * Matrix operations
+    add,
+    sub,
+    mul,
     -- * Matrix transformations
     inverse,
     adjoint,
+    conjugate,
     transpose,
     normalize,
-    -- * Mutable operations
-    freeze,
-    thaw,
     modify,
-    with
+    -- * Mutable matrices
+    thaw,
+    freeze,
+    unsafeThaw,
+    unsafeFreeze
 ) where
 
 import Data.List (intercalate)
-import Text.Printf
+import Data.Tuple
 import Foreign.Ptr
-import Foreign.Storable
-import Foreign.ForeignPtr
 import Foreign.C.Types
-import Foreign.Marshal.Array
+import Foreign.C.String
 import Control.Monad
 import Control.Monad.ST
-import System.IO.Unsafe
+import Control.Monad.Primitive
+import Control.Applicative hiding (empty)
 import qualified Data.Vector.Storable as VS
 import qualified Data.Vector.Storable.Mutable as VSM
-import qualified Data.Eigen.Matrix.Mutable as MM
 import Data.Eigen.Internal
+import Data.Eigen.Matrix.Mutable
 
 -- | constant Matrix class to be used in pure computations, uses the same column major memory layout as Eigen MatrixXd
 data Matrix = Matrix {
@@ -64,14 +70,14 @@ data Matrix = Matrix {
 
 -- | pretty prints the matrix
 instance Show Matrix where
-    show m@Matrix{..} = printf "Matrix %dx%d\n%s\n" m_rows m_cols $
-        intercalate "\n" $ map (intercalate "\t" . map show) $ toList m
+    show m@Matrix{..} = concat [
+        "Matrix ", show m_rows, "x", show m_cols, "\n", intercalate "\n" $ map (intercalate "\t" . map show) $ toList m, "\n"]
 
 -- | only the following functions are defined for Num instance: (*), (+), (-)
 instance Num Matrix where
-    (*) = binop MM.mul
-    (+) = binop MM.add
-    (-) = binop MM.sub
+    (*) = mul
+    (+) = add
+    (-) = sub
     fromInteger = undefined
     signum = undefined
     abs = undefined
@@ -94,11 +100,11 @@ ones rows cols = constant rows cols 1
 
 -- | square matrix with 1 on main diagonal and 0 elsewhere
 identity :: Int -> Matrix
-identity size = Matrix size size $ runST $ do
+identity size = Matrix size size $ VS.create $ do
     vm <- VSM.replicate (size * size) 0
     forM_ [0..pred size] $ \n ->
         VSM.write vm (n * size + n) 1
-    VS.unsafeFreeze vm
+    return vm
 
 -- | number of rows for the matrix
 rows :: Matrix -> Int
@@ -122,8 +128,9 @@ row r m@Matrix{..} = [coeff r c m | c <- [0..pred m_cols]]
 
 -- | extract rectangular block from matrix defined by startRow startCol blockRows blockCols
 block :: Int -> Int -> Int -> Int -> Matrix -> Matrix
-block startRow startCol blockRows blockCols m = fromList $
-    [[coeff row col m | col <- take blockCols [startCol..]] | row <- take blockRows [startRow..]]
+block startRow startCol blockRows blockCols m =
+    generate blockRows blockCols $ \row col ->
+        coeff (startRow + row) (startCol + col) m
 
 -- | the maximum of all coefficients of matrix
 maxCoeff :: Matrix -> Double
@@ -149,90 +156,130 @@ leftCols cols m@Matrix{..} = block 0 0 m_rows cols m
 rightCols :: Int -> Matrix -> Matrix
 rightCols cols m@Matrix{..} = block 0 (m_cols - cols) m_rows cols m
 
-binop :: (MM.MMatrix -> MM.MMatrix -> MM.MMatrix -> IO a) -> Matrix -> Matrix -> Matrix
-binop f lhs rhs = unsafePerformIO $ do
-    ret <- MM.new 0 0
-    lhs <- thaw lhs
-    rhs <- thaw rhs
-    _ <- f ret lhs rhs
-    freeze ret
-
 -- | construct matrix from a list of rows, column count is detected as maximum row length
 fromList :: [[Double]] -> Matrix
 fromList list = Matrix rows cols vals where
     rows = length list
     cols = maximum $ map length list
-    vals = runST $ do
+    vals = VS.create $ do
         vm <- VSM.replicate (rows * cols) 0
-        zipWithM_ (\row vals ->
-            zipWithM_ (\col val ->
-                VSM.write vm (col * rows + row) (cast val)) [0..] vals) [0..] list
-        VS.unsafeFreeze vm
+        forM_ (zip [0..] list) $ \(row, vals) ->
+            forM_ (zip [0..] vals) $ \(col, val) ->
+                VSM.write vm (col * rows + row) (cast val)
+        return vm
 
 -- | converts matrix to a list of its rows
 toList :: Matrix -> [[Double]]
 toList Matrix{..} = [[cast $ m_vals VS.! (col * m_rows + row) | col <- [0..pred m_cols]] | row <- [0..pred m_rows]]
 
+-- | craete matrix using generator function f :: row -> col -> val
+generate :: Int -> Int -> (Int -> Int -> Double) -> Matrix
+generate rows cols f = Matrix rows cols $ VS.create $ do
+    vals <- VSM.new (rows * cols)
+    forM_ [0..pred rows] $ \row ->
+        forM_ [0..pred cols] $ \col ->
+            VSM.write vals (col * rows + row) (cast $ f row col)
+    return vals
+
+
 -- | for vectors, the l2 norm, and for matrices the Frobenius norm. In both cases, it consists in the square root of the sum of the square of all the matrix entries. For vectors, this is also equals to the square root of the dot product of this with itself.
 norm :: Matrix -> Double
-norm m = unsafePerformIO $ thaw m >>= MM.norm
+norm = _unop c_norm
 
 -- | for vectors, the squared l2 norm, and for matrices the Frobenius norm. In both cases, it consists in the sum of the square of all the matrix entries. For vectors, this is also equals to the dot product of this with itself.
 squaredNorm :: Matrix -> Double
-squaredNorm m = unsafePerformIO $ thaw m >>= MM.squaredNorm
+squaredNorm = _unop c_squaredNorm
 
 -- | the determinant of the matrix
 determinant :: Matrix -> Double
-determinant m = unsafePerformIO $ thaw m >>= MM.determinant
+determinant m@Matrix{..}
+    | m_cols == m_rows = _unop c_determinant m
+    | otherwise = error "you tried calling determinant on non-square matrix"
+
+-- | return a - b
+add :: Matrix -> Matrix -> Matrix
+add = _binop c_add
+
+-- | return a + b
+sub :: Matrix -> Matrix -> Matrix
+sub = _binop c_sub
+
+-- | return a * b
+mul :: Matrix -> Matrix -> Matrix
+mul = _binop c_mul
+
 
 {- | inverse of the matrix
 
 For small fixed sizes up to 4x4, this method uses cofactors. In the general case, this method uses class 'PartialPivLU'
 -}
 inverse :: Matrix -> Matrix
-inverse = modify MM.inverse
+inverse m@Matrix{..}
+    | m_rows == m_cols = _modify id c_inverse m
+    | otherwise = error "you tried calling inverse on non-square matrix"
 
 -- | adjoint of the matrix
 adjoint :: Matrix -> Matrix
-adjoint = modify MM.adjoint
+adjoint = _modify swap c_adjoint
 
 -- | transpose of the matrix
 transpose :: Matrix -> Matrix
-transpose = modify MM.transpose
+transpose = _modify swap c_transpose
+
+-- | conjugate of the matrix
+conjugate :: Matrix -> Matrix
+conjugate = _modify id c_conjugate
 
 -- | nomalize the matrix by deviding it on its 'norm'
 normalize :: Matrix -> Matrix
-normalize = modify MM.normalize
+normalize Matrix{..} = performIO $ do
+    vals <- VS.thaw m_vals
+    VSM.unsafeWith vals $ \p ->
+        call $ c_normalize p (cast m_rows) (cast m_cols)
+    Matrix m_rows m_cols <$> VS.unsafeFreeze vals
 
--- | create a snapshot of mutable matrix
-freeze :: MM.MMatrix -> IO Matrix
-freeze mm = MM.with mm $ \pm -> do
-    rows <- fmap cast $ c_rows pm
-    cols <- fmap cast $ c_cols pm
-    let len = rows * cols
-    src <- c_data pm
-    fp <- mallocForeignPtrArray len
-    withForeignPtr fp $ \dst -> copyArray dst src len
-    return Matrix {
-        m_rows = rows,
-        m_cols = cols,
-        m_vals = VS.unsafeFromForeignPtr fp 0 len
-    }
+-- | Apply a destructive operation to a matrix. The operation will be performed in place if it is safe to do so and will modify a copy of the matrix otherwise.
+modify :: (forall s. MMatrix s -> ST s ()) -> Matrix -> Matrix
+modify f m@Matrix{..} = m { m_vals = VS.modify f' m_vals } where
+    f' vals = f (MMatrix m_rows m_cols vals)
 
--- | create mutable copy of the matrix
-thaw :: Matrix -> IO MM.MMatrix
-thaw Matrix{..} = withForeignPtr fp $ \src -> do
-    let len = m_rows * m_cols
-    pm <- c_create (cast m_rows) (cast m_cols)
-    dst <- c_data pm
-    copyArray dst (plusPtr src $ off * sizeOf (undefined :: CDouble)) len
-    fmap MM.MMatrix $ newForeignPtr c_destroy pm
-    where (fp, off, _) = VS.unsafeToForeignPtr m_vals
+-- | Yield an immutable copy of the mutable matrix
+freeze :: PrimMonad m => MMatrix (PrimState m) -> m Matrix
+freeze MMatrix{..} = VS.freeze mm_vals >>= \vals -> return $ Matrix mm_rows mm_cols vals
 
--- | apply mutable operation to the mutable copy of the matrix and snapshot of this copy
-modify :: (MM.MMatrix -> IO ()) -> Matrix -> Matrix
-modify f m = unsafePerformIO $ thaw m >>= \mm -> f mm >> freeze mm
+-- | Yield a mutable copy of the immutable matrix
+thaw :: PrimMonad m => Matrix -> m (MMatrix (PrimState m))
+thaw Matrix{..} = VS.thaw m_vals >>= \vals -> return $ MMatrix m_rows m_cols vals
 
--- | apply foreign operation to the mutable copy of the matrix and operation result
-with :: Matrix -> (Ptr C_MatrixXd -> IO a) -> IO a
-with m f = thaw m >>= \mm -> MM.with mm f
+-- | Unsafe convert a mutable matrix to an immutable one without copying. The mutable matrix may not be used after this operation.
+unsafeFreeze :: PrimMonad m => MMatrix (PrimState m) -> m Matrix
+unsafeFreeze MMatrix{..} = VS.unsafeFreeze mm_vals >>= \vals -> return $ Matrix mm_rows mm_cols vals
+
+-- | Unsafely convert an immutable matrix to a mutable one without copying. The immutable matrix may not be used after this operation.
+unsafeThaw :: PrimMonad m => Matrix -> m (MMatrix (PrimState m))
+unsafeThaw Matrix{..} = VS.unsafeThaw m_vals >>= \vals -> return $ MMatrix m_rows m_cols vals
+
+_unop :: (Ptr CDouble -> CInt -> CInt -> IO CDouble) -> Matrix -> Double
+_unop f Matrix{..} = performIO $ VS.unsafeWith m_vals $ \p ->
+    cast <$> f p (cast m_rows) (cast m_cols)
+
+_binop :: (Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString) -> Matrix -> Matrix -> Matrix
+_binop f m1 m2 = performIO $ do
+    vals <- VS.thaw (m_vals m1)
+    VSM.unsafeWith vals $ \lhs ->
+        VS.unsafeWith (m_vals m2) $ \rhs ->
+            call $ f
+                lhs (cast $ m_rows m1) (cast $ m_cols m1)
+                rhs (cast $ m_rows m2) (cast $ m_cols m2)
+    Matrix (m_rows m1) (m_cols m1) <$> VS.unsafeFreeze vals
+
+_modify :: ((Int,Int) -> (Int,Int)) -> (Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString) -> Matrix -> Matrix
+_modify f g Matrix{..} = performIO $ do
+    let (rows, cols) = f (m_rows, m_cols)
+    vals <- VSM.new (rows * cols)
+    VS.unsafeWith m_vals $ \src ->
+        VSM.unsafeWith vals $ \dst ->
+            call $ g
+                dst (cast rows) (cast cols)
+                src (cast m_rows) (cast m_cols)
+    Matrix rows cols <$> VS.unsafeFreeze vals

@@ -1,7 +1,7 @@
 name:           eigen
-version:        1.0.0
+version:        1.1.1
 homepage:       https://github.com/osidorkin/haskell-eigen
-synopsis:       Haskel binding for Eigen library
+synopsis:       Eigen C++ library (linear algebra: matrices, vectors, numerical solvers, and related algorithms).
 description:    This module provides Haskell binding for Eigen C++ library.
                 Eigen is a C++ template library for linear algebra: matrices, vectors, numerical solvers, and related algorithms.
                 Eigen home page is <http://eigen.tuxfamily.org/>.
@@ -12,10 +12,8 @@ description:    This module provides Haskell binding for Eigen C++ library.
                 .
                 Virtually any software may use Eigen. For example, closed-source software may use Eigen without having to disclose its own source code. Many proprietary and closed-source software projects are using Eigen right now, as well as many BSD-licensed projects.
                 .
-                Note that ghci may fail with \"@unknown symbol ___dso_handle@\" error due to dynamic linking with C++ runtime. Consider to use ghc --make instead. Please let me know if you know any workaround for this issue.
-                .
                 Some parts of documentation strings are based or replicate original Eigen documentation which is available at <http://eigen.tuxfamily.org/dox/>.
-category:       Data, Math, Algebra
+category:       Data, Math, Algebra, Statistics, Algorithms
 license:        BSD3
 license-file:   LICENSE
 copyright:      (c) 2013, Oleg Sidorkin
@@ -23,7 +21,7 @@ author:         Oleg Sidorkin <oleg.sidorkin@gmail.com>
 maintainer:     Oleg Sidorkin <oleg.sidorkin@gmail.com>
 cabal-version:  >= 1.6
 build-type:     Simple
-tested-with:    GHC ==7.4.1
+tested-with:    GHC ==7.8.3
 
 source-repository head
   type:     git
@@ -39,7 +37,8 @@ library
 
     ghc-options:        -Wall -fno-warn-name-shadowing
     build-depends:      base >= 3 && < 5,
-                        vector >= 0.5 && < 0.11
+                        vector >= 0.5 && < 0.11,
+                        primitive
 
     include-dirs:       eigen3
     c-sources:          eigen-proxy.cpp

@@ -66,13 +66,14 @@ import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Storable
 import Foreign.Marshal.Alloc
+import Control.Applicative
 import Data.Eigen.Matrix
-import qualified Data.Eigen.Matrix.Mutable as MM
 import Data.Eigen.Internal
-import System.IO.Unsafe
+import qualified Data.Vector.Storable as VS
+import qualified Data.Vector.Storable.Mutable as VSM
 
-foreign import ccall "eigen-proxy.h eigen_solve" c_solve :: CInt -> Ptr C_MatrixXd -> Ptr C_MatrixXd -> Ptr C_MatrixXd -> IO CString
-foreign import ccall "eigen-proxy.h eigen_relativeError" c_relativeError :: Ptr CDouble -> Ptr C_MatrixXd -> Ptr C_MatrixXd -> Ptr C_MatrixXd -> IO CString
+foreign import ccall "eigen-proxy.h eigen_solve" c_solve :: CInt -> Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString
+foreign import ccall "eigen-proxy.h eigen_relativeError" c_relativeError :: Ptr CDouble -> Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString
 
 
 
@@ -113,23 +114,35 @@ data Decomposition
 
 -- | [x = solve d a b] finds a solution @x@ of @ax = b@ equation using decomposition @d@
 solve :: Decomposition -> Matrix -> Matrix -> Matrix
-solve d a b = (`modify` empty) $ \x ->
-    with a $ \pa ->
-    with b $ \pb ->
-    MM.with x $ \px ->
-        call $ c_solve (fromIntegral $ fromEnum d) px pa pb
+solve d a b = performIO $ do
+    let
+        cols = 1
+        rows = m_cols a
+    vals <- VSM.new (rows * cols)
+    VSM.unsafeWith vals $ \px ->
+        VS.unsafeWith (m_vals a) $ \pa ->
+            VS.unsafeWith (m_vals b) $ \pb ->
+                call $ c_solve (cast $ fromEnum d)
+                    px (cast rows) (cast cols)
+                    pa (cast $ m_rows a) (cast $ m_cols a)
+                    pb (cast $ m_rows b) (cast $ m_cols b)
+    Matrix rows cols <$> VS.unsafeFreeze vals
+
 
 -- | [e = relativeError x a b] computes @norm (ax - b) / norm b@ where @norm@ is L2 norm
 relativeError :: Matrix -> Matrix -> Matrix -> Double
-relativeError x a b = unsafePerformIO $
-    with x $ \px ->
-    with a $ \pa ->
-    with b $ \pb ->
-    alloca $ \pr -> do
-        call $ c_relativeError pr px pa pb
-        fmap cast $ peek pr
+relativeError x a b = performIO $ do
+    VS.unsafeWith (m_vals x) $ \px ->
+        VS.unsafeWith (m_vals a) $ \pa ->
+            VS.unsafeWith (m_vals b) $ \pb ->
+                alloca $ \pe -> do
+                    call $ c_relativeError pe
+                        px (cast $ m_rows x) (cast $ m_cols x)
+                        pa (cast $ m_rows a) (cast $ m_cols a)
+                        pb (cast $ m_rows b) (cast $ m_cols b)
+                    cast <$> peek pe
 
-{- | 
+{- |
 [(coeffs, error) = linearRegression points] computes multiple linear regression @y = a1 x1 + a2 x2 + ... + an xn + b@ using 'ColPivHouseholderQR' decomposition
 
 * point format is @[y, x1..xn]@
@@ -153,7 +166,7 @@ main = print $ linearRegression [
  @
  ([-2.3466569233817127,-0.2534897541434826,-0.1749653335680988],1.8905965120153139e-3)
  @
- 
+
 -}
 linearRegression :: [[Double]] -> ([Double], Double)
 linearRegression points = (coeffs, e) where
