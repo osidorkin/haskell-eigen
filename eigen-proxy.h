@@ -1,5 +1,6 @@
 #define EIGEN_MPL2_ONLY
 #define EIGEN2_SUPPORT
+#define EIGEN_NO_EIGEN2_DEPRECATED_WARNING
 #define EIGEN_INITIALIZE_MATRICES_BY_ZERO
 void eigen_assert_fail(const char* condition, const char* function, const char* file, int line);
 #define eigen_assert(x) do {\

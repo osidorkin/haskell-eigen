@@ -1,4 +1,4 @@
 set -e
 v=`cat eigen.cabal | grep -e "^version" | cut -c17-`
 rm -f ../eigen-$v.tar.gz
-cd .. && tar -zcvf eigen-$v.tar.gz eigen-$v/Data eigen-$v/eigen3 eigen-$v/eigen* eigen-$v/LICENSE eigen-$v/README.md eigen-$v/Setup.hs
+cd .. && tar -zcvf eigen-$v.tar.gz eigen-$v/Data eigen-$v/eigen3 eigen-$v/eigen-* eigen-$v/eigen.cabal eigen-$v/LICENSE eigen-$v/README.md eigen-$v/Setup.hs
