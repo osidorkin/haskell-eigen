@@ -1,6 +1,8 @@
 haskell-eigen
 =============
 
+Hackage documentation page: https://hackage.haskell.org/package/eigen
+
 This module provides Haskell binding for Eigen C++ library.
 Eigen is a C++ template library for linear algebra: matrices, vectors, numerical solvers, and related algorithms.
 Eigen home page is <http://eigen.tuxfamily.org/>.
@@ -10,8 +12,6 @@ Eigen is licensed under the MPL2, which is a simple weak copyleft license. Commo
 Note that currently, a few features in Eigen rely on third-party code licensed under the LGPL: SimplicialCholesky, AMD ordering, and constrained\_cg. Such features are explicitly disabled by compiling Eigen with the EIGEN\_MPL2\_ONLY preprocessor symbol defined.
 
 Virtually any software may use Eigen. For example, closed-source software may use Eigen without having to disclose its own source code. Many proprietary and closed-source software projects are using Eigen right now, as well as many BSD-licensed projects.
-
-Note that **ghci** may file with *"unknown symbol ___dso_handle"* error due to dynamic linking with C++ runtime. Consider to use **ghc --make** instead. Please let me know if you know any workaround for this issue.
 
 Some parts of documentation strings are based or replicate original Eigen documentation which is available at <http://eigen.tuxfamily.org/dox/>.
 
