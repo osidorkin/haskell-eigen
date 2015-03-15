@@ -31,12 +31,12 @@ call :: IO CString -> IO ()
 call func = func >>= \c_str -> when (c_str /= nullPtr) $
     peekCString c_str >>= \str -> c_freeString c_str >> fail str
 
-foreign import ccall "eigen-proxy.h eigen_initParallel" c_initParallel :: IO ()
 foreign import ccall "eigen-proxy.h eigen_setNbThreads" c_setNbThreads :: CInt -> IO ()
+foreign import ccall "eigen-proxy.h eigen_getNbThreads" c_getNbThreads :: IO CInt
 
-foreign import ccall "eigen-proxy.h eigen_add"         c_add         :: Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString
-foreign import ccall "eigen-proxy.h eigen_sub"         c_sub         :: Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString
-foreign import ccall "eigen-proxy.h eigen_mul"         c_mul         :: Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString
+foreign import ccall "eigen-proxy.h eigen_add"         c_add         :: Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString
+foreign import ccall "eigen-proxy.h eigen_sub"         c_sub         :: Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString
+foreign import ccall "eigen-proxy.h eigen_mul"         c_mul         :: Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString
 foreign import ccall "eigen-proxy.h eigen_transpose"   c_transpose   :: Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString
 foreign import ccall "eigen-proxy.h eigen_inverse"     c_inverse     :: Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString
 foreign import ccall "eigen-proxy.h eigen_adjoint"     c_adjoint     :: Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString

@@ -4,10 +4,13 @@
 #include <stdio.h>
 #include <sstream>
 
-struct eigen_assert_exception : std::exception {
+static bool inited = eigen_initParallel();
+
+class eigen_assert_exception : public std::exception {
     std::string _what;
+public:
     eigen_assert_exception(const std::string& what) : _what(what) {}
-    ~eigen_assert_exception() throw () {}
+    ~eigen_assert_exception() throw() {}
     const char* what() const throw () { return _what.c_str(); }
 };
 
@@ -21,24 +24,33 @@ typedef Map< Matrix<double,Dynamic,Dynamic> > MapMatrix;
 
 extern "C" {
 
-const char* eigen_add(double* data, int rows, int cols, const double* data1, int rows1, int cols1) 
+const char* eigen_add(
+    double* data, int rows, int cols, 
+    const double* data1, int rows1, int cols1,
+    const double* data2, int rows2, int cols2)
 {
     GUARD_START
-    MapMatrix(data, rows, cols) += MapMatrix(data1, rows1, cols1);
+    MapMatrix(data, rows, cols) = MapMatrix(data1, rows1, cols1) + MapMatrix(data2, rows2, cols2);;
     GUARD_END
 }
 
-const char* eigen_sub(double* data, int rows, int cols, const double* data1, int rows1, int cols1) 
+const char* eigen_sub(
+    double* data, int rows, int cols,
+    const double* data1, int rows1, int cols1,
+    const double* data2, int rows2, int cols2)
 {
     GUARD_START
-    MapMatrix(data, rows, cols) -= MapMatrix(data1, rows1, cols1);
+    MapMatrix(data, rows, cols) = MapMatrix(data1, rows1, cols1) - MapMatrix(data2, rows2, cols2);;
     GUARD_END
 }
 
-const char* eigen_mul(double* data, int rows, int cols, const double* data1, int rows1, int cols1)  
+const char* eigen_mul(
+    double* data, int rows, int cols,
+    const double* data1, int rows1, int cols1,
+    const double* data2, int rows2, int cols2)
 {
     GUARD_START
-    MapMatrix(data, rows, cols) *= MapMatrix(data1, rows1, cols1);
+    MapMatrix(data, rows, cols) = MapMatrix(data1, rows1, cols1) * MapMatrix(data2, rows2, cols2);;
     GUARD_END
 }
 
@@ -52,7 +64,7 @@ double eigen_mean(const double* data, int rows, int cols) { return MapMatrix(dat
 double eigen_trace(const double* data, int rows, int cols) { return MapMatrix(data, rows, cols).trace(); }
 double eigen_determinant(const double* data, int rows, int cols) { return MapMatrix(data, rows, cols).determinant(); }
 
-const char* eigen_inverse(double* data, int rows, int cols, const double* data1, int rows1, int cols1) 
+const char* eigen_inverse(double* data, int rows, int cols, const double* data1, int rows1, int cols1)
 {
     GUARD_START
     puts("inverse");
@@ -60,7 +72,7 @@ const char* eigen_inverse(double* data, int rows, int cols, const double* data1,
     GUARD_END
 }
 
-const char* eigen_adjoint(double* data, int rows, int cols, const double* data1, int rows1, int cols1) 
+const char* eigen_adjoint(double* data, int rows, int cols, const double* data1, int rows1, int cols1)
 {
     GUARD_START
     puts("adjoint");
@@ -68,7 +80,7 @@ const char* eigen_adjoint(double* data, int rows, int cols, const double* data1,
     GUARD_END
 }
 
-const char* eigen_conjugate(double* data, int rows, int cols, const double* data1, int rows1, int cols1) 
+const char* eigen_conjugate(double* data, int rows, int cols, const double* data1, int rows1, int cols1)
 {
     GUARD_START
     puts("conjugate");
@@ -76,7 +88,7 @@ const char* eigen_conjugate(double* data, int rows, int cols, const double* data
     GUARD_END
 }
 
-const char* eigen_transpose(double* data, int rows, int cols, const double* data1, int rows1, int cols1) 
+const char* eigen_transpose(double* data, int rows, int cols, const double* data1, int rows1, int cols1)
 {
     GUARD_START
     puts("transpose");
@@ -84,7 +96,7 @@ const char* eigen_transpose(double* data, int rows, int cols, const double* data
     GUARD_END
 }
 
-const char* eigen_normalize(double* data, int rows, int cols) 
+const char* eigen_normalize(double* data, int rows, int cols)
 {
     GUARD_START
     puts("normalize");
@@ -93,7 +105,7 @@ const char* eigen_normalize(double* data, int rows, int cols)
 }
 
 
-const char* eigen_solve(Decomposition d, 
+const char* eigen_solve(Decomposition d,
     double* px, int rx, int cx, // x
     const double* pa, int ra, int ca, // A
     const double* pb, int rb, int cb) // b
@@ -132,7 +144,7 @@ const char* eigen_solve(Decomposition d,
 }
 
 
-const char* eigen_relativeError(double& e, 
+const char* eigen_relativeError(double& e,
     const double* px, int rx, int cx, // x
     const double* pa, int ra, int ca, // A
     const double* pb, int rb, int cb) // b
@@ -146,12 +158,17 @@ const char* eigen_relativeError(double& e,
 }
 
 
-void eigen_initParallel() {
+bool eigen_initParallel() {
     initParallel();
+    return true;
 }
 
 void eigen_setNbThreads(int n) {
     setNbThreads(n);
+}
+
+int eigen_getNbThreads() {
+    return nbThreads();
 }
 
 }

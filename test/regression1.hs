@@ -1,6 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
 import Data.Eigen.Matrix as M
-import qualified Data.Eigen.Matrix.Mutable as MM
 import Data.Eigen.LA
 import Data.List as L
 import Control.Monad

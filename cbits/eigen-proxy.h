@@ -12,9 +12,9 @@ using namespace Eigen;
 
 extern "C" {
 
-const char* eigen_add(double*, int, int, const double*, int, int);
-const char* eigen_sub(double*, int, int, const double*, int, int);
-const char* eigen_mul(double*, int, int, const double*, int, int);
+const char* eigen_add(double*, int, int, const double*, int, int, const double*, int, int);
+const char* eigen_sub(double*, int, int, const double*, int, int, const double*, int, int);
+const char* eigen_mul(double*, int, int, const double*, int, int, const double*, int, int);
 double eigen_norm(const double*, int, int);
 double eigen_squaredNorm(const double*, int, int);
 double eigen_blueNorm(const double*, int, int);
@@ -23,13 +23,14 @@ double eigen_sum(const double*, int, int);
 double eigen_prod(const double*, int, int);
 double eigen_mean(const double*, int, int);
 double eigen_trace(const double*, int, int);
-double eigen_determinant( const double*, int, int);
+double eigen_determinant(const double*, int, int);
 const char* eigen_transpose(double*, int, int, const double*, int, int);
 const char* eigen_normalize(double*, int, int);
 const char* eigen_inverse(double*, int, int, const double*, int, int);
 const char* eigen_conjugate(double*, int, int, const double*, int, int);
 const char* eigen_adjoint(double*, int, int, const double*, int, int);
-void eigen_initParallel();
+bool eigen_initParallel();
+int eigen_getNbThreads();
 void eigen_setNbThreads(int);
 
 enum Decomposition {
@@ -49,5 +50,5 @@ const char* eigen_relativeError(double& e,
 
 } // end extern "C"
 
-#define GUARD_START try { do {
-#define GUARD_END } while(false); return 0; } catch (const std::exception& ex) { return strdup(ex.what()); }
+#define GUARD_START try { assert(inited); do {
+#define GUARD_END } while(false); return 0; } catch (const eigen_assert_exception& ex) { return strdup(ex.what()); }

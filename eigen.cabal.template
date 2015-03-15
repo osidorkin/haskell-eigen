@@ -1,0 +1,57 @@
+name:           eigen
+version:        1.2.1
+homepage:       https://github.com/osidorkin/haskell-eigen
+synopsis:       Eigen C++ library (linear algebra: matrices, vectors, numerical solvers).
+description:    This module provides Haskell binding for Eigen C++ library.
+                Eigen is a C++ template library for linear algebra: matrices, vectors, numerical solvers, and related algorithms.
+                Eigen home page is <http://eigen.tuxfamily.org/>.
+                .
+                Eigen is licensed under the MPL2, which is a simple weak copyleft license. Common questions about the MPL2 are answered in the official MPL2 FAQ at <http://www.mozilla.org/MPL/2.0/FAQ.html>.
+                .
+                Note that currently, a few features in Eigen rely on third-party code licensed under the LGPL: SimplicialCholesky, AMD ordering, and constrained_cg. Such features are explicitly disabled by compiling Eigen with the EIGEN_MPL2_ONLY preprocessor symbol defined.
+                .
+                Virtually any software may use Eigen. For example, closed-source software may use Eigen without having to disclose its own source code. Many proprietary and closed-source software projects are using Eigen right now, as well as many BSD-licensed projects.
+                .
+                Some parts of documentation strings are based or replicate original Eigen documentation which is available at <http://eigen.tuxfamily.org/dox/>.
+category:       Data, Math, Algebra, Statistics, Algorithms
+license:        BSD3
+license-file:   LICENSE
+copyright:      (c) 2013-2015, Oleg Sidorkin
+author:         Oleg Sidorkin <oleg.sidorkin@gmail.com>
+maintainer:     Oleg Sidorkin <oleg.sidorkin@gmail.com>
+cabal-version:  >= 1.8
+build-type:     Simple
+tested-with:    GHC ==7.8.3
+extra-source-files: cbits/eigen-proxy.h
+	{eigen3}
+
+source-repository head
+  type:     git
+  location: git://github.com/osidorkin/haskell-eigen.git
+
+
+library
+    exposed-modules:    Data.Eigen.LA
+                        Data.Eigen.Matrix
+                        Data.Eigen.Matrix.Mutable
+                        Data.Eigen.Parallel
+                        Data.Eigen.Internal
+
+    ghc-options:        -Wall -fno-warn-name-shadowing
+    build-depends:      base >= 3 && < 5,
+                        vector >= 0.5 && < 0.11,
+                        primitive >= 0.1 && < 0.6
+
+    include-dirs:       eigen3, cbits
+    c-sources:          cbits/eigen-proxy.cpp
+    extra-libraries:    stdc++
+
+Test-Suite test-solve
+    type:               exitcode-stdio-1.0
+    main-is:            test/solve1.hs
+    build-depends:      base, primitive, vector, eigen
+
+Test-Suite test-regression
+    type:               exitcode-stdio-1.0
+    main-is:            test/regression1.hs
+    build-depends:      base, primitive, vector, eigen
