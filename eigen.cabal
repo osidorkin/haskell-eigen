@@ -1,5 +1,5 @@
 name:           eigen
-version:        1.2.3
+version:        1.2.4
 homepage:       https://github.com/osidorkin/haskell-eigen
 synopsis:       Eigen C++ library (linear algebra: matrices, vectors, numerical solvers).
 description:    This module provides Haskell binding for Eigen C++ library.
@@ -365,7 +365,7 @@ library
                         Data.Eigen.Matrix
                         Data.Eigen.Matrix.Mutable
                         Data.Eigen.Parallel
-                        
+
     other-modules:      Data.Eigen.Internal
 
     ghc-options:        -Wall -fno-warn-name-shadowing

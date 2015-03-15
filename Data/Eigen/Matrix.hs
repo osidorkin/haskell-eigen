@@ -307,7 +307,7 @@ mul m1 m2
 
 -- | Diagonal of the matrix
 diagonal :: Matrix -> Matrix
-diagonal = _unop swap I.c_diagonal
+diagonal = _unop (\(rows, cols) -> (min rows cols, 1)) I.c_diagonal
 
 {- | Inverse of the matrix
 
