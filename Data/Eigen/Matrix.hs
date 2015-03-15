@@ -69,7 +69,7 @@ import qualified Data.Vector.Storable.Mutable as VSM
 import qualified Data.Eigen.Internal as I
 import qualified Data.Eigen.Matrix.Mutable as M
 
--- | Matrix class to be used in pure computations, uses column major memory layout
+-- | Matrix to be used in pure computations, uses column major memory layout
 data Matrix = Matrix {
     m_rows :: Int,
     m_cols :: Int,
@@ -255,7 +255,7 @@ mul m1 m2
 
 {- | Inverse of the matrix
 
-For small fixed sizes up to 4x4, this method uses cofactors. In the general case, this method uses class 'PartialPivLU'
+For small fixed sizes up to 4x4, this method uses cofactors. In the general case, this method uses PartialPivLU decomposition
 -}
 inverse :: Matrix -> Matrix
 inverse m@Matrix{..}
