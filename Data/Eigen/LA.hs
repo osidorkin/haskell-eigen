@@ -58,7 +58,7 @@ module Data.Eigen.LA (
     solve,
     relativeError,
     -- * Rank-revealing decompositions
-    {- | 
+    {- |
 Certain decompositions are rank-revealing, i.e. are able to compute the 'rank' of a matrix. These are typically also the decompositions that behave best in the face of a non-full-rank matrix (which in the 'square' case means a singular matrix).
 
 @
@@ -105,6 +105,7 @@ Matrix 3x2
     linearRegression
 ) where
 
+import Prelude as P
 import Foreign.Storable
 import Foreign.Marshal.Alloc
 import qualified Foreign.Concurrent as FC
@@ -116,7 +117,7 @@ import qualified Data.Vector.Storable as VS
 
 {- |
 @
-Decomposition           Requirements on the matrix          Speed   Accuracy  Rank  Kernel  Image 
+Decomposition           Requirements on the matrix          Speed   Accuracy  Rank  Kernel  Image
 
 PartialPivLU            Invertible                          ++      +         -     -       -
 FullPivLU               None                                -       +++       +     +       +
@@ -200,7 +201,7 @@ kernel d m1 = I.performIO $
 
 -- | Return a matrix whose columns form a basis of the column-space of @A@
 image :: Decomposition -> Matrix -> Matrix
-image d m1 = I.performIO $ 
+image d m1 = I.performIO $
     alloca $ \pvals ->
     alloca $ \prows ->
     alloca $ \pcols ->
@@ -243,11 +244,11 @@ main = print $ linearRegression [
 -}
 linearRegression :: [[Double]] -> ([Double], Double)
 linearRegression points = (coeffs, e) where
-    a = fromList $ map ((1:).tail) points
-    b = fromList $ map ((:[]).head) points
+    a = fromList $ P.map ((1:).tail) points
+    b = fromList $ P.map ((:[]).head) points
     x = solve ColPivHouseholderQR a b
     e = relativeError x a b
-    coeffs = map head $ toList x
+    coeffs = P.map head $ toList x
 
 
 

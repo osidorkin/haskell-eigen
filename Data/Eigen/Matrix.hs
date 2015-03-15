@@ -41,14 +41,24 @@ module Data.Eigen.Matrix (
     blueNorm,
     hypotNorm,
     determinant,
+    -- * Generic reductions
+    fold,
+    fold',
+    ifold,
+    ifold',
     -- * Boolean reductions
     all,
     any,
     count,
-    -- * Matrix operations
+    -- * Basic matrix algebra
     add,
     sub,
     mul,
+    -- * Mapping over elements
+    map,
+    imap,
+    filter,
+    ifilter,
     -- * Matrix transformations
     diagonal,
     transpose,
@@ -57,15 +67,19 @@ module Data.Eigen.Matrix (
     conjugate,
     normalize,
     modify,
+    upperTriangule,
+    lowerTriangule,
     -- * Mutable matrices
     thaw,
     freeze,
     unsafeThaw,
     unsafeFreeze,
+    -- * Raw pointers
     unsafeWith,
 ) where
 
-import Prelude hiding (null, sum, all, any)
+import qualified Prelude as P
+import Prelude hiding (null, sum, all, any, map, filter)
 import Data.List (intercalate)
 import Data.Tuple
 import Foreign.Ptr
@@ -81,7 +95,7 @@ import qualified Data.Vector.Storable.Mutable as VSM
 import qualified Data.Eigen.Internal as I
 import qualified Data.Eigen.Matrix.Mutable as M
 
--- | Matrix to be used in pure computations, uses column major memory layout
+-- | Matrix to be used in pure computations, uses column major memory layout, features copy-free FFI with C++ <http://eigen.tuxfamily.org Eigen> library.
 data Matrix = Matrix {
     m_rows :: Int,
     m_cols :: Int,
@@ -92,16 +106,16 @@ data Matrix = Matrix {
 instance Show Matrix where
     show m@Matrix{..} = concat [
         "Matrix ", show m_rows, "x", show m_cols, 
-        "\n", intercalate "\n" $ map (intercalate "\t" . map show) $ toList m, "\n"]
+        "\n", intercalate "\n" $ P.map (intercalate "\t" . P.map show) $ toList m, "\n"]
 
--- | Nm instance for the matrix
+-- | Shortcuts for basic matrix math
 instance Num Matrix where
     (*) = mul
     (+) = add
     (-) = sub
     fromInteger = constant 1 1 . fromInteger
-    signum m@Matrix{..} = m { m_vals = VS.map signum m_vals }
-    abs m@Matrix{..} = m { m_vals = VS.map abs m_vals }
+    signum = map signum
+    abs = map abs
 
 -- | Empty 0x0 matrix
 empty :: Matrix
@@ -155,7 +169,7 @@ dims :: Matrix -> (Int, Int)
 dims Matrix{..} = (m_rows, m_cols)
 
 -- | Matrix coefficient at specific row and col
-(!) :: Matrix -> (Int,Int) -> Double
+(!) :: Matrix -> (Int, Int) -> Double
 (!) m (row,col) = coeff row col m
 
 -- | Matrix coefficient at specific row and col
@@ -188,27 +202,27 @@ block startRow startCol blockRows blockCols m =
 valid :: Matrix -> Bool
 valid Matrix{..} = m_rows >= 0 && m_cols >= 0 && VS.length m_vals == m_rows * m_cols
 
--- | The maximum of all coefficients of matrix
+-- | The maximum coefficient of the matrix
 maxCoeff :: Matrix -> Double
 maxCoeff Matrix{..} = I.cast $ VS.maximum m_vals
 
--- | The minimum of all coefficients of matrix
+-- | The minimum coefficient of the matrix
 minCoeff :: Matrix -> Double
 minCoeff Matrix{..} = I.cast $ VS.minimum m_vals
 
--- | Top n rows of matrix
+-- | Top @N@ rows of matrix
 topRows :: Int -> Matrix -> Matrix
 topRows rows m@Matrix{..} = block 0 0 rows m_cols m
 
--- | Bottom n rows of matrix
+-- | Bottom @N@ rows of matrix
 bottomRows :: Int -> Matrix -> Matrix
 bottomRows rows m@Matrix{..} = block (m_rows - rows) 0 rows m_cols m
 
--- | Left n columns of matrix
+-- | Left @N@ columns of matrix
 leftCols :: Int -> Matrix -> Matrix
 leftCols cols m@Matrix{..} = block 0 0 m_rows cols m
 
--- | Right n columns of matrix
+-- | Right @N@ columns of matrix
 rightCols :: Int -> Matrix -> Matrix
 rightCols cols m@Matrix{..} = block 0 (m_cols - cols) m_rows cols m
 
@@ -216,7 +230,7 @@ rightCols cols m@Matrix{..} = block 0 (m_cols - cols) m_rows cols m
 fromList :: [[Double]] -> Matrix
 fromList list = Matrix rows cols vals where
     rows = length list
-    cols = maximum $ map length list
+    cols = maximum $ P.map length list
     vals = VS.create $ do
         vm <- VSM.replicate (rows * cols) 0
         forM_ (zip [0..] list) $ \(row, vals) ->
@@ -265,7 +279,10 @@ any f = VS.any (f . I.cast) . m_vals
 count :: (Double -> Bool) -> Matrix -> Int
 count f = VS.foldl' (\n x -> if f (I.cast x) then succ n else n) 0 . m_vals
 
--- | For vectors, the l2 norm, and for matrices the Frobenius norm. In both cases, it consists in the square root of the sum of the square of all the matrix entries. For vectors, this is also equals to the square root of the dot product of this with itself.
+{-| For vectors, the l2 norm, and for matrices the Frobenius norm.
+    In both cases, it consists in the square root of the sum of the square of all the matrix entries.
+    For vectors, this is also equals to the square root of the dot product of this with itself.
+-}
 norm :: Matrix -> Double
 norm = _prop I.c_norm
 
@@ -291,19 +308,94 @@ determinant m
 add :: Matrix -> Matrix -> Matrix
 add m1 m2
     | dims m1 == dims m2 = _binop const I.c_add m1 m2
-    | otherwise = error "Matrix.add: matrix should have the same size"
+    | otherwise = error "Matrix.add: matrices should have the same size"
 
 -- | Subtracting two matrices by subtracting the corresponding entries together. You can use @(-)@ function as well.
 sub :: Matrix -> Matrix -> Matrix
 sub m1 m2
     | dims m1 == dims m2 = _binop const I.c_sub m1 m2
-    | otherwise = error "Matrix.add: matrix should have the same size"
+    | otherwise = error "Matrix.add: matrices should have the same size"
 
 -- | Matrix multiplication. You can use @(*)@ function as well.
 mul :: Matrix -> Matrix -> Matrix
 mul m1 m2
     | m_cols m1 == m_rows m2 = _binop (\(rows, _) (_, cols) -> (rows, cols)) I.c_mul m1 m2
     | otherwise = error "Matrix.mul: number of columns for lhs matrix should be the same as number of rows for rhs matrix"
+
+{- | Apply a given function to each element of the matrix.
+
+Here is an example how to implement scalar matrix multiplication:
+
+>>> let a = fromList [[1,2],[3,4]]
+
+>>> a
+Matrix 2x2
+1.0 2.0
+3.0 4.0
+
+>>> map (*10) a
+Matrix 2x2
+10.0    20.0
+30.0    40.0
+
+-}
+map :: (Double -> Double) -> Matrix -> Matrix
+map f m@Matrix{..} = m { m_vals = VS.map (I.cast . f . I.cast) m_vals }
+
+{- | Apply a given function to each element of the matrix.
+
+Here is an example how getting upper triangular matrix can be implemented:
+
+>>> let a = fromList [[1,2,3],[4,5,6],[7,8,9]]
+
+>>> a
+Matrix 3x3
+1.0 2.0 3.0
+4.0 5.0 6.0
+7.0 8.0 9.0
+
+>>> imap (\row col val -> if row <= col then val else 0) a
+Matrix 3x3
+1.0 2.0 3.0
+0.0 5.0 6.0
+0.0 0.0 9.0
+
+-}
+
+imap :: (Int -> Int -> Double -> Double) -> Matrix -> Matrix
+imap f m@Matrix{..} = m { m_vals = VS.imap (\n -> let (c, r) = divMod n m_rows in I.cast . f r c . I.cast) m_vals }
+
+-- | Upper trinagle of the matrix
+upperTriangule :: Matrix -> Matrix
+upperTriangule = imap (\row col val -> if row <= col then val else 0)
+
+-- | Lower trinagle of the matrix
+lowerTriangule :: Matrix -> Matrix
+lowerTriangule = imap (\row col val -> if row >= col then val else 0)
+
+-- | Filter elements in the matrix. Filtered elements will be replaced by 0
+filter :: (Double -> Bool) -> Matrix -> Matrix
+filter f = map (\x -> if f x then x else 0)
+
+-- | Filter elements in the matrix. Filtered elements will be replaced by 0
+ifilter :: (Int -> Int -> Double -> Bool) -> Matrix -> Matrix
+ifilter f = imap (\r c x -> if f r c x then x else 0)
+
+-- | Reduce matrix using user provided function applied to each element.
+fold :: (a -> Double -> a) -> a -> Matrix -> a
+fold f a Matrix{..} = VS.foldl (\a x -> f a (I.cast x)) a m_vals
+
+-- | Reduce matrix using user provided function applied to each element. This is strict version of 'fold'
+fold' :: (a -> Double -> a) -> a -> Matrix -> a
+fold' f a Matrix{..} = VS.foldl' (\a x -> f a (I.cast x)) a m_vals
+
+-- | Reduce matrix using user provided function applied to each element and it's index
+ifold :: (Int -> Int -> a -> Double -> a) -> a -> Matrix -> a
+ifold f a Matrix{..} = VS.ifoldl (\a n x -> let (c,r) = divMod n m_rows in f r c a (I.cast x)) a m_vals
+
+-- | Reduce matrix using user provided function applied to each element and it's index. This is strict version of 'ifold'
+ifold' :: (Int -> Int -> a -> Double -> a) -> a -> Matrix -> a
+ifold' f a Matrix{..} = VS.ifoldl' (\a n x -> let (c,r) = divMod n m_rows in f r c a (I.cast x)) a m_vals
 
 -- | Diagonal of the matrix
 diagonal :: Matrix -> Matrix

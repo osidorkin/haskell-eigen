@@ -1,5 +1,5 @@
 name:           eigen
-version:        1.2.4
+version:        1.2.5
 homepage:       https://github.com/osidorkin/haskell-eigen
 synopsis:       Eigen C++ library (linear algebra: matrices, vectors, numerical solvers).
 description:    This module provides Haskell binding for Eigen C++ library.
@@ -13,7 +13,7 @@ description:    This module provides Haskell binding for Eigen C++ library.
                 Virtually any software may use Eigen. For example, closed-source software may use Eigen without having to disclose its own source code. Many proprietary and closed-source software projects are using Eigen right now, as well as many BSD-licensed projects.
                 .
                 Some parts of documentation strings are based or replicate original Eigen documentation which is available at <http://eigen.tuxfamily.org/dox/>.
-category:       Data, Math, Algebra, Statistics, Algorithms
+category:       Data, Math, Algebra, Statistics, Algorithms, Numeric
 license:        BSD3
 license-file:   LICENSE
 copyright:      (c) 2013-2015, Oleg Sidorkin
