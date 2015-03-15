@@ -15,14 +15,13 @@ module Data.Eigen.Matrix (
     ones,
     identity,
     constant,
+    random,
     -- * Accessing matrix data
     cols,
     rows,
     (!),
     coeff,
     unsafeCoeff,
-    minCoeff,
-    maxCoeff,
     col,
     row,
     block,
@@ -31,18 +30,31 @@ module Data.Eigen.Matrix (
     leftCols,
     rightCols,
     -- * Matrix properties
+    sum,
+    prod,
+    mean,
+    minCoeff,
+    maxCoeff,
+    trace,
     norm,
     squaredNorm,
+    blueNorm,
+    hypotNorm,
     determinant,
+    -- * Boolean reductions
+    all,
+    any,
+    count,
     -- * Matrix operations
     add,
     sub,
     mul,
     -- * Matrix transformations
+    diagonal,
+    transpose,
     inverse,
     adjoint,
     conjugate,
-    transpose,
     normalize,
     modify,
     -- * Mutable matrices
@@ -53,7 +65,7 @@ module Data.Eigen.Matrix (
     unsafeWith,
 ) where
 
-import Prelude hiding (null)
+import Prelude hiding (null, sum, all, any)
 import Data.List (intercalate)
 import Data.Tuple
 import Foreign.Ptr
@@ -122,6 +134,13 @@ identity size = Matrix size size $ VS.create $ do
     forM_ [0..pred size] $ \n ->
         VSM.write vm (n * size + n) 1
     return vm
+
+-- | The random matrix of a given size
+random :: Int -> Int -> IO Matrix
+random rows cols = do
+    m <- M.new rows cols
+    I.call $ M.unsafeWith m I.c_random
+    unsafeFreeze m
 
 -- | Number of rows for the matrix
 rows :: Matrix -> Int
@@ -218,6 +237,34 @@ generate rows cols f = Matrix rows cols $ VS.create $ do
             VSM.write vals (col * rows + row) (I.cast $ f row col)
     return vals
 
+-- | The sum of all coefficients of the matrix
+sum :: Matrix -> Double
+sum = _prop I.c_sum
+
+-- | The product of all coefficients of the matrix
+prod :: Matrix -> Double
+prod = _prop I.c_prod
+
+-- | The mean of all coefficients of the matrix
+mean :: Matrix -> Double
+mean = _prop I.c_prod
+
+-- | The trace of a matrix is the sum of the diagonal coefficients and can also be computed as sum (diagonal m)
+trace :: Matrix -> Double
+trace = _prop I.c_trace
+
+-- | Applied to a predicate and a matrix, all determines if all elements of the matrix satisfies the predicate
+all :: (Double -> Bool) -> Matrix -> Bool
+all f = VS.all (f . I.cast) . m_vals
+
+-- | Applied to a predicate and a matrix, any determines if any element of the matrix satisfies the predicate
+any :: (Double -> Bool) -> Matrix -> Bool
+any f = VS.any (f . I.cast) . m_vals
+
+-- | Returns the number of coefficients in a given matrix that evaluate to true
+count :: (Double -> Bool) -> Matrix -> Int
+count f = VS.foldl' (\n x -> if f (I.cast x) then succ n else n) 0 . m_vals
+
 -- | For vectors, the l2 norm, and for matrices the Frobenius norm. In both cases, it consists in the square root of the sum of the square of all the matrix entries. For vectors, this is also equals to the square root of the dot product of this with itself.
 norm :: Matrix -> Double
 norm = _prop I.c_norm
@@ -226,32 +273,41 @@ norm = _prop I.c_norm
 squaredNorm :: Matrix -> Double
 squaredNorm = _prop I.c_squaredNorm
 
+-- | The l2 norm of the matrix using the Blue's algorithm. A Portable Fortran Program to Find the Euclidean Norm of a Vector, ACM TOMS, Vol 4, Issue 1, 1978.
+blueNorm :: Matrix -> Double
+blueNorm = _prop I.c_blueNorm
+
+-- | The l2 norm of the matrix avoiding undeflow and overflow. This version use a concatenation of hypot calls, and it is very slow.
+hypotNorm :: Matrix -> Double
+hypotNorm = _prop I.c_hypotNorm
+
 -- | The determinant of the matrix
 determinant :: Matrix -> Double
 determinant m
     | square m = _prop I.c_determinant m
     | otherwise = error "Matrix.determinant: non-square matrix"
 
--- | Adding two matrices by adding the corresponding entries together
+-- | Adding two matrices by adding the corresponding entries together. You can use @(+)@ function as well.
 add :: Matrix -> Matrix -> Matrix
 add m1 m2
     | dims m1 == dims m2 = _binop const I.c_add m1 m2
     | otherwise = error "Matrix.add: matrix should have the same size"
 
--- | Return a + b
+-- | Subtracting two matrices by subtracting the corresponding entries together. You can use @(-)@ function as well.
 sub :: Matrix -> Matrix -> Matrix
 sub m1 m2
     | dims m1 == dims m2 = _binop const I.c_sub m1 m2
     | otherwise = error "Matrix.add: matrix should have the same size"
 
-{- | Matrix multiplication
-
-<<http://upload.wikimedia.org/math/7/3/f/73fc7ef1bf6f6822115c41cff58535e1.png>>
--}
+-- | Matrix multiplication. You can use @(*)@ function as well.
 mul :: Matrix -> Matrix -> Matrix
 mul m1 m2
     | m_cols m1 == m_rows m2 = _binop (\(rows, _) (_, cols) -> (rows, cols)) I.c_mul m1 m2
     | otherwise = error "Matrix.mul: number of columns for lhs matrix should be the same as number of rows for rhs matrix"
+
+-- | Diagonal of the matrix
+diagonal :: Matrix -> Matrix
+diagonal = _unop swap I.c_diagonal
 
 {- | Inverse of the matrix
 
@@ -303,31 +359,31 @@ unsafeThaw :: PrimMonad m => Matrix -> m (M.MMatrix (PrimState m))
 unsafeThaw Matrix{..} = VS.unsafeThaw m_vals >>= return . M.MMatrix m_rows m_cols
 
 -- | Pass a pointer to the matrix's data to the IO action. The data may not be modified through the pointer.
-unsafeWith :: Matrix -> (CInt -> CInt -> Ptr CDouble -> IO a) -> IO a
+unsafeWith :: Matrix -> (Ptr CDouble -> CInt -> CInt -> IO a) -> IO a
 unsafeWith m@Matrix{..} f
     | not (valid m) = fail "matrix layout is invalid"
-    | otherwise = VS.unsafeWith m_vals $ f (I.cast m_rows) (I.cast m_cols)
+    | otherwise = VS.unsafeWith m_vals $ \p -> f p (I.cast m_rows) (I.cast m_cols)
 
 _prop :: (Ptr CDouble -> CInt -> CInt -> IO CDouble) -> Matrix -> Double
-_prop f m = I.performIO $ unsafeWith m $ \rows cols vals -> I.cast <$> f vals rows cols
+_prop f m = I.cast $ I.performIO $ unsafeWith m f
 
 _binop :: ((Int, Int) -> (Int, Int) -> (Int, Int)) -> (Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString) -> Matrix -> Matrix -> Matrix
 _binop f g m1 m2 = I.performIO $ do
-    mm <- uncurry M.new $ f (dims m1) (dims m2)
-    M.unsafeWith mm $ \rows0 cols0 vals0 ->
-        unsafeWith m1 $ \rows1 cols1 vals1 ->
-            unsafeWith m2 $ \rows2 cols2 vals2 ->
+    m0 <- uncurry M.new $ f (dims m1) (dims m2)
+    M.unsafeWith m0 $ \vals0 rows0 cols0 ->
+        unsafeWith m1 $ \vals1 rows1 cols1 ->
+            unsafeWith m2 $ \vals2 rows2 cols2 ->
                 I.call $ g
                     vals0 rows0 cols0
                     vals1 rows1 cols1
                     vals2 rows2 cols2
-    unsafeFreeze mm
+    unsafeFreeze m0
 
 _unop :: ((Int,Int) -> (Int,Int)) -> (Ptr CDouble -> CInt -> CInt -> Ptr CDouble -> CInt -> CInt -> IO CString) -> Matrix -> Matrix
 _unop f g m1 = I.performIO $ do
     m0 <- uncurry M.new $ f (dims m1)
-    M.unsafeWith m0 $ \rows0 cols0 vals0 ->
-        unsafeWith m1 $ \rows1 cols1 vals1 ->
+    M.unsafeWith m0 $ \vals0 rows0 cols0 ->
+        unsafeWith m1 $ \vals1 rows1 cols1 ->
             I.call $ g
                 vals0 rows0 cols0
                 vals1 rows1 cols1

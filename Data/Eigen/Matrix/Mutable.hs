@@ -85,8 +85,8 @@ unsafeWrite :: PrimMonad m => MMatrix (PrimState m) -> Int -> Int -> Double -> m
 unsafeWrite MMatrix{..} row col val = VSM.unsafeWrite mm_vals (col * mm_rows + row) (I.cast val)
 
 -- | Pass a pointer to the matrix's data to the IO action. Modifying data through the pointer is unsafe if the matrix could have been frozen before the modification.
-unsafeWith :: IOMatrix -> (CInt -> CInt -> Ptr CDouble -> IO a) -> IO a
+unsafeWith :: IOMatrix -> (Ptr CDouble -> CInt -> CInt -> IO a) -> IO a
 unsafeWith mm@MMatrix{..} f
     | not (valid mm) = fail "mutable matrix layout is invalid"
-    | otherwise = VSM.unsafeWith mm_vals $ \p -> f (I.cast mm_rows) (I.cast mm_cols) p
+    | otherwise = VSM.unsafeWith mm_vals $ \p -> f p (I.cast mm_rows) (I.cast mm_cols)
 

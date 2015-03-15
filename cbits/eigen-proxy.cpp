@@ -21,16 +21,19 @@ void eigen_assert_fail(const char* condition, const char* function, const char* 
 }
 
 typedef Map< Matrix<double,Dynamic,Dynamic> > MapMatrix;
+typedef Map< Matrix<double,1,Dynamic> > MapVector;
+typedef Map< Vector3d > MapVector3d;
+typedef Map< Vector4d > MapVector4d;
 
 extern "C" {
 
 const char* eigen_add(
-    double* data, int rows, int cols, 
+    double* data, int rows, int cols,
     const double* data1, int rows1, int cols1,
     const double* data2, int rows2, int cols2)
 {
     GUARD_START
-    MapMatrix(data, rows, cols) = MapMatrix(data1, rows1, cols1) + MapMatrix(data2, rows2, cols2);;
+    MapMatrix(data, rows, cols) = MapMatrix(data1, rows1, cols1) + MapMatrix(data2, rows2, cols2);
     GUARD_END
 }
 
@@ -40,7 +43,7 @@ const char* eigen_sub(
     const double* data2, int rows2, int cols2)
 {
     GUARD_START
-    MapMatrix(data, rows, cols) = MapMatrix(data1, rows1, cols1) - MapMatrix(data2, rows2, cols2);;
+    MapMatrix(data, rows, cols) = MapMatrix(data1, rows1, cols1) - MapMatrix(data2, rows2, cols2);
     GUARD_END
 }
 
@@ -50,7 +53,7 @@ const char* eigen_mul(
     const double* data2, int rows2, int cols2)
 {
     GUARD_START
-    MapMatrix(data, rows, cols) = MapMatrix(data1, rows1, cols1) * MapMatrix(data2, rows2, cols2);;
+    MapMatrix(data, rows, cols) = MapMatrix(data1, rows1, cols1) * MapMatrix(data2, rows2, cols2);
     GUARD_END
 }
 
@@ -67,7 +70,6 @@ double eigen_determinant(const double* data, int rows, int cols) { return MapMat
 const char* eigen_inverse(double* data, int rows, int cols, const double* data1, int rows1, int cols1)
 {
     GUARD_START
-    puts("inverse");
     MapMatrix(data, rows, cols) = MapMatrix(data1, rows1, cols1).inverse();
     GUARD_END
 }
@@ -75,7 +77,6 @@ const char* eigen_inverse(double* data, int rows, int cols, const double* data1,
 const char* eigen_adjoint(double* data, int rows, int cols, const double* data1, int rows1, int cols1)
 {
     GUARD_START
-    puts("adjoint");
     MapMatrix(data, rows, cols) = MapMatrix(data1, rows1, cols1).adjoint();
     GUARD_END
 }
@@ -83,32 +84,121 @@ const char* eigen_adjoint(double* data, int rows, int cols, const double* data1,
 const char* eigen_conjugate(double* data, int rows, int cols, const double* data1, int rows1, int cols1)
 {
     GUARD_START
-    puts("conjugate");
     MapMatrix(data, rows, cols) = MapMatrix(data1, rows1, cols1).conjugate();
+    GUARD_END
+}
+
+const char* eigen_diagonal(double* data, int rows, int cols, const double* data1, int rows1, int cols1)
+{
+    GUARD_START
+    MapMatrix(data, rows, cols) = MapMatrix(data1, rows1, cols1).diagonal();
     GUARD_END
 }
 
 const char* eigen_transpose(double* data, int rows, int cols, const double* data1, int rows1, int cols1)
 {
     GUARD_START
-    puts("transpose");
     MapMatrix(data, rows, cols) = MapMatrix(data1, rows1, cols1).transpose();
+    GUARD_END
+}
+
+const char* eigen_dot(double* retval, 
+    const double* data1, int size1,
+    const double* data2, int size2)
+{
+    GUARD_START
+    *retval = MapVector(data1, size1).dot(MapVector(data2, size2));
+    GUARD_END
+}
+
+const char* eigen_cross(
+    double* data,
+    const double* data1,
+    const double* data2)
+{
+    GUARD_START
+    MapVector3d retval(data);
+    retval = MapVector3d(data1).cross(MapVector3d(data2));
+    GUARD_END
+}
+
+const char* eigen_cross3(
+    double* data,
+    const double* data1,
+    const double* data2)
+{
+    GUARD_START
+    MapVector4d retval(data);
+    retval = MapVector4d(data1).cross3(MapVector4d(data2));
     GUARD_END
 }
 
 const char* eigen_normalize(double* data, int rows, int cols)
 {
     GUARD_START
-    puts("normalize");
     MapMatrix(data, rows, cols).normalize();
     GUARD_END
 }
 
+const char* eigen_random(double* data, int rows, int cols)
+{
+    GUARD_START
+    MapMatrix(data, rows, cols) = MatrixXd::Random(rows, cols);
+    GUARD_END
+}
+
+const char* eigen_rank(Decomposition d, int* r, const double* data, int rows, int cols) {
+    GUARD_START
+    MapMatrix A(data, rows, cols);
+    switch (d) {
+        case ::FullPivLU:
+            *r = A.fullPivLu().rank();
+            break;
+        case ::ColPivHouseholderQR:
+            *r = A.colPivHouseholderQr().rank();
+            break;
+        case ::FullPivHouseholderQR:
+            *r = A.fullPivHouseholderQr().rank();
+            break;
+        case ::JacobiSVD:
+            *r = A.jacobiSvd(ComputeThinU | ComputeThinV).rank();
+            break;
+        default:
+            return strdup("Selected decomposition doesn't support rank revealing.");
+    }
+    GUARD_END
+}
+
+const char* eigen_kernel(Decomposition d, double** data0, int* rows0, int* cols0, const double* data1, int rows1, int cols1) {
+    GUARD_START
+    if (d != ::FullPivLU)
+        return strdup("Selected decomposition doesn't support kernel revealing.");
+    MapMatrix A(data1, rows1, cols1);
+    MatrixXd B = A.fullPivLu().kernel();
+    *rows0 = B.rows();
+    *cols0 = B.cols();
+    *data0 = (double*)malloc(*rows0 * *cols0 * sizeof(double));
+    MapMatrix(*data0, *rows0, *cols0) = B;
+    GUARD_END
+}
+
+const char* eigen_image(Decomposition d, double** data0, int* rows0, int* cols0, const double* data1, int rows1, int cols1) {
+    GUARD_START
+    if (d != ::FullPivLU)
+        return strdup("Selected decomposition doesn't support image revealing.");
+    MapMatrix A(data1, rows1, cols1);
+    MatrixXd B = A.fullPivLu().image(A);
+    *rows0 = B.rows();
+    *cols0 = B.cols();
+    *data0 = (double*)malloc(*rows0 * *cols0 * sizeof(double));
+    MapMatrix(*data0, *rows0, *cols0) = B;
+    GUARD_END
+}
 
 const char* eigen_solve(Decomposition d,
-    double* px, int rx, int cx, // x
-    const double* pa, int ra, int ca, // A
-    const double* pb, int rb, int cb) // b
+    double* px, int rx, int cx,
+    const double* pa, int ra, int ca,
+    const double* pb, int rb, int cb)
 {
     GUARD_START
     MapMatrix x(px, rx, cx);
@@ -144,16 +234,16 @@ const char* eigen_solve(Decomposition d,
 }
 
 
-const char* eigen_relativeError(double& e,
-    const double* px, int rx, int cx, // x
-    const double* pa, int ra, int ca, // A
-    const double* pb, int rb, int cb) // b
+const char* eigen_relativeError(double* e,
+    const double* px, int rx, int cx,
+    const double* pa, int ra, int ca,
+    const double* pb, int rb, int cb)
 {
     GUARD_START
     MapMatrix x(px, rx, cx);
     MapMatrix A(pa, ra, ca);
     MapMatrix b(pb, rb, cb);
-    e = (A*x - b).norm() / b.norm();
+    *e = (A*x - b).norm() / b.norm();
     GUARD_END
 }
 

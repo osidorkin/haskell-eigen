@@ -24,8 +24,13 @@ double eigen_prod(const double*, int, int);
 double eigen_mean(const double*, int, int);
 double eigen_trace(const double*, int, int);
 double eigen_determinant(const double*, int, int);
+const char* eigen_dot(double*, const double*, int, const double*, int);
+const char* eigen_cross(double*, const double*, const double*);
+const char* eigen_cross3(double*, const double*, const double*);
+const char* eigen_diagonal(double*, int, int, const double*, int, int);
 const char* eigen_transpose(double*, int, int, const double*, int, int);
 const char* eigen_normalize(double*, int, int);
+const char* eigen_random(double*, int, int);
 const char* eigen_inverse(double*, int, int, const double*, int, int);
 const char* eigen_conjugate(double*, int, int, const double*, int, int);
 const char* eigen_adjoint(double*, int, int, const double*, int, int);
@@ -34,15 +39,31 @@ int eigen_getNbThreads();
 void eigen_setNbThreads(int);
 
 enum Decomposition {
-	PartialPivLU, FullPivLU, HouseholderQR, ColPivHouseholderQR, FullPivHouseholderQR, LLT, LDLT, JacobiSVD
+	PartialPivLU,
+	FullPivLU,
+	HouseholderQR,
+	ColPivHouseholderQR,
+	FullPivHouseholderQR,
+	LLT,
+	LDLT,
+	JacobiSVD,
+	// SelfAdjointEigenSolver,
+	// ComplexEigenSolver,
+	// EigenSolver,
+	// GeneralizedSelfAdjointEigenSolver
 };
+
+const char* eigen_rank(Decomposition d, int*, const double*, int, int);
+const char* eigen_kernel(Decomposition d, double**, int*, int*, const double*, int, int);
+const char* eigen_image(Decomposition d, double**, int*, int*, const double*, int, int);
 
 const char* eigen_solve(Decomposition d, // Ax=b 
 	double*, int, int, // x
 	const double*, int, int, // A
 	const double*, int, int); // b
 
-const char* eigen_relativeError(double& e, 
+
+const char* eigen_relativeError(double* e, 
 	const double*, int, int, // x
 	const double*, int, int, // A
 	const double*, int, int); // b;
