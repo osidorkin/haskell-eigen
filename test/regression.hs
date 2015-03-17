@@ -6,6 +6,7 @@ import Control.Monad
 
 main = do
     let
+        a :: MatrixXd
         a = fromList [
             [1,3.02, 6.89],
             [1,2.01, 5.39],
@@ -13,7 +14,7 @@ main = do
             [1,2.09, 5.55],
             [1,2.58, 6.32]]
 
-        b = fromList $ map return [-4.32,-3.79,-4.01,-3.86,-4.10]
+        b = fromList $ Prelude.map return [-4.32,-3.79,-4.01,-3.86,-4.10]
 
     print a
     print b
@@ -29,11 +30,12 @@ main = do
     putStrLn "\n-2.34666 - 0.25349 x1 - 0.174965 x2"
     putStrLn "done"
 
-    print $ identity 4
+    print $ (identity 4 :: MatrixXd)
     print $ M.normalize a
     print $ M.transpose a
 
     let
+        a :: MatrixXd
         a = M.fromList [[0.68,  0.597,  -0.33],[-0.211,  0.823,  0.536],[ 0.566, -0.605, -0.444]]
         b = M.inverse a
     print a

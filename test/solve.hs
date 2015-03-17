@@ -3,6 +3,7 @@ import Data.Eigen.LA
 
 main = do
     let
+        a :: MatrixXd
         a = fromList [[1,2,3], [4,5,6], [7,8,10]]
         b = fromList [[3],[3],[4]]
         x = solve ColPivHouseholderQR a b

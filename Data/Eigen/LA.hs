@@ -16,6 +16,7 @@ import Data.Eigen.LA
 
 main = do
     let
+        a :: MatrixXd
         a = fromList [[1,2,3], [4,5,6], [7,8,10]]
         b = fromList [[3],[3],[4]]
         x = solve ColPivHouseholderQR a b
@@ -66,7 +67,7 @@ import Data.Eigen.Matrix
 import Data.Eigen.LA
 
 main = do
-    let a = fromList [[1,2,5],[2,1,4],[3,0,3]]
+    let a = fromList [[1,2,5],[2,1,4],[3,0,3]] :: MatrixXd
     putStrLn "Here is the matrix A:" >> print a
     putStrLn "The rank of A is:" >> print (rank FullPivLU a)
     putStrLn "Here is a matrix whose columns form a basis of the null-space of A:" >> print (kernel FullPivLU a)
@@ -151,68 +152,68 @@ data Decomposition
 
 
 -- | [x = solve d a b] finds a solution @x@ of @ax = b@ equation using decomposition @d@
-solve :: Decomposition -> Matrix -> Matrix -> Matrix
+solve :: I.Elem a b => Decomposition -> Matrix a b -> Matrix a b -> Matrix a b
 solve d a b = I.performIO $ do
-    x <- M.new (m_cols a) 1
+    x <- M.new (cols a) 1
     M.unsafeWith x $ \x_vals x_rows x_cols ->
         unsafeWith a $ \a_vals a_rows a_cols ->
             unsafeWith b $ \b_vals b_rows b_cols ->
-                I.call $ I.c_solve (I.cast $ fromEnum d)
+                I.call $ I.solve (I.cast $ fromEnum d)
                     x_vals x_rows x_cols
                     a_vals a_rows a_cols
                     b_vals b_rows b_cols
     unsafeFreeze x
 
 -- | [e = relativeError x a b] computes @norm (ax - b) / norm b@ where @norm@ is L2 norm
-relativeError :: Matrix -> Matrix -> Matrix -> Double
+relativeError :: I.Elem a b => Matrix a b -> Matrix a b -> Matrix a b -> a
 relativeError x a b = I.performIO $
     unsafeWith x $ \x_vals x_rows x_cols ->
         unsafeWith a $ \a_vals a_rows a_cols ->
             unsafeWith b $ \b_vals b_rows b_cols ->
                 alloca $ \pe -> do
-                    I.call $ I.c_relativeError pe
+                    I.call $ I.relativeError pe
                         x_vals x_rows x_cols
                         a_vals a_rows a_cols
                         b_vals b_rows b_cols
                     I.cast <$> peek pe
 
 -- | The rank of the matrix
-rank :: Decomposition -> Matrix -> Int
+rank :: I.Elem a b => Decomposition -> Matrix a b -> Int
 rank d m = I.performIO $ alloca $ \pr -> do
-    I.call $ unsafeWith m $ I.c_rank (I.cast $ fromEnum d) pr
+    I.call $ unsafeWith m $ I.rank (I.cast $ fromEnum d) pr
     I.cast <$> peek pr
 
 -- | Return matrix whose columns form a basis of the null-space of @A@
-kernel :: Decomposition -> Matrix -> Matrix
+kernel :: I.Elem a b => Decomposition -> Matrix a b -> Matrix a b
 kernel d m1 = I.performIO $
     alloca $ \pvals ->
     alloca $ \prows ->
     alloca $ \pcols ->
         unsafeWith m1 $ \vals1 rows1 cols1 -> do
-            I.call $ I.c_kernel (I.cast $ fromEnum d)
+            I.call $ I.kernel (I.cast $ fromEnum d)
                 pvals prows pcols
                 vals1 rows1 cols1
             vals <- peek pvals
             rows <- I.cast <$> peek prows
             cols <- I.cast <$> peek pcols
-            fp <- FC.newForeignPtr vals $ I.c_free vals
+            fp <- FC.newForeignPtr vals $ I.free vals
             return $ Matrix rows cols $ VS.unsafeFromForeignPtr0 fp $ rows * cols
 
 
 -- | Return a matrix whose columns form a basis of the column-space of @A@
-image :: Decomposition -> Matrix -> Matrix
+image :: I.Elem a b => Decomposition -> Matrix a b -> Matrix a b
 image d m1 = I.performIO $
     alloca $ \pvals ->
     alloca $ \prows ->
     alloca $ \pcols ->
         unsafeWith m1 $ \vals1 rows1 cols1 -> do
-            I.call $ I.c_image (I.cast $ fromEnum d)
+            I.call $ I.image (I.cast $ fromEnum d)
                 pvals prows pcols
                 vals1 rows1 cols1
             vals <- peek pvals
             rows <- I.cast <$> peek prows
             cols <- I.cast <$> peek pcols
-            fp <- FC.newForeignPtr vals $ I.c_free vals
+            fp <- FC.newForeignPtr vals $ I.free vals
             return $ Matrix rows cols $ VS.unsafeFromForeignPtr0 fp $ rows * cols
 
 

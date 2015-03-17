@@ -5,7 +5,7 @@ Documentation on Hackage https://hackage.haskell.org/package/eigen
 
 Eigen documentation page http://eigen.tuxfamily.org/dox/
 
-This module provides Haskell binding for Eigen C++ library.
+This module provides Haskell binding for Eigen.
 Eigen is a C++ template library for linear algebra: matrices, vectors, numerical solvers, and related algorithms.
 Eigen home page is <http://eigen.tuxfamily.org/>.
 
