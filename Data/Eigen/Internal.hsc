@@ -2,6 +2,7 @@
 module Data.Eigen.Internal where
 
 import Foreign.Ptr
+import Foreign.ForeignPtr
 import Foreign.Storable
 import Foreign.C.Types
 import Foreign.C.String
@@ -9,6 +10,9 @@ import Control.Monad
 import Control.Applicative
 import System.IO.Unsafe
 import Data.Complex
+import qualified Data.Vector.Storable as VS
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Internal as BSI
 
 class (Num a, Cast a b, Cast b a, Storable b, Code b) => Elem a b | a -> b where
 
@@ -58,11 +62,28 @@ instance Cast (Complex Float) (CComplex CFloat) where; cast (x :+ y) = CComplex 
 instance Cast (CComplex CDouble) (Complex Double) where; cast (CComplex x y) = cast x :+ cast y
 instance Cast (Complex Double) (CComplex CDouble) where; cast (x :+ y) = CComplex (cast x) (cast y)
 
+intSize = sizeOf (undefined :: CInt)
+
+encodeInt :: CInt -> BS.ByteString
+encodeInt x = BSI.unsafeCreate (sizeOf x) $ (`poke` x) . castPtr
+
+decodeInt :: BS.ByteString -> CInt
+decodeInt (BSI.PS fp fo fs)
+	| fs == sizeOf x = x
+	| otherwise = error "decodeInt: wrong buffer size"
+	where x = performIO $ withForeignPtr fp $ peek . (`plusPtr` fo)
+
 data CSparseMatrix a b
 type CSparseMatrixPtr a b = Ptr (CSparseMatrix a b)
 
 performIO :: IO a -> a
 performIO = unsafeDupablePerformIO
+
+plusForeignPtr :: ForeignPtr a -> Int -> ForeignPtr b
+plusForeignPtr fp fo = castForeignPtr fp' where
+	vs :: VS.Vector CChar
+	vs = VS.unsafeFromForeignPtr (castForeignPtr fp) fo 0
+	(fp', _) = VS.unsafeToForeignPtr0 vs
 
 foreign import ccall "eigen-proxy.h free" c_freeString :: CString -> IO ()
 

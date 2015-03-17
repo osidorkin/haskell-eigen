@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE GADTs, ScopedTypeVariables #-}
 module Data.Eigen.SparseMatrix (
     -- * SparseMatrix type
     -- | SparseMatrix aliases follows Eigen naming convention
@@ -36,18 +36,21 @@ module Data.Eigen.SparseMatrix (
     mul,
     -- * Matrix transformations
     pruned,
-    prunedRef,
     scale,
     transpose,
     adjoint,
     --lowerTriangle,
     --upperTriangle,
+    -- * Matrix serialization
+    encode,
+    decode,
 ) where
 
 import qualified Prelude as P
 import Prelude hiding (map)
 import qualified Data.List as L
 import Data.Complex
+import Data.IORef
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Storable
@@ -62,6 +65,9 @@ import qualified Foreign.Concurrent as FC
 import qualified Data.Eigen.Internal as I
 import qualified Data.Vector.Storable as VS
 import qualified Data.Vector.Storable.Mutable as VSM
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Internal as BSI
 
 {-| A versatible sparse matrix representation.
 
@@ -174,13 +180,9 @@ innerSize = _unop I.sparse_innerSize (return . I.cast)
 outerSize :: I.Elem a b => SparseMatrix a b -> Int
 outerSize = _unop I.sparse_outerSize (return . I.cast)
 
--- | Suppresses all nonzeros which are much smaller than the tolerence epsilon
-pruned :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b
-pruned = _unop I.sparse_pruned mk
-
 -- | Suppresses all nonzeros which are much smaller than reference under the tolerence epsilon
-prunedRef :: I.Elem a b => a -> SparseMatrix a b -> SparseMatrix a b
-prunedRef e = _unop (\p pq -> alloca $ \pe -> poke pe (I.cast e) >> I.sparse_prunedRef p pe pq) mk
+pruned :: I.Elem a b => a -> SparseMatrix a b -> SparseMatrix a b
+pruned r = _unop (\p pq -> alloca $ \pr -> poke pr (I.cast r) >> I.sparse_prunedRef p pr pq) mk
 
 -- | Multiply matrix on a given scalar
 scale :: I.Elem a b => a -> SparseMatrix a b -> SparseMatrix a b
@@ -263,6 +265,63 @@ toMatrix m1@(SparseMatrix fp) = I.performIO $ do
             I.call $ I.sparse_toMatrix pm1 vals rows cols
     M.unsafeFreeze m0
 
+-- | Encode the sparse matrix as a lazy byte string
+encode :: I.Elem a b => SparseMatrix a b -> BSL.ByteString
+encode m@(SparseMatrix fp) = I.performIO $ do
+    let size = nonZeros m
+    tris <- VSM.new size
+    withForeignPtr fp $ \p ->
+        VSM.unsafeWith tris $ \q ->
+            I.call $ I.sparse_toList p q (I.cast size)
+    tris <- VS.unsafeFreeze tris
+    let 
+        tri@(I.CTriplet _ _ val) = VS.head tris
+
+    return $ BSL.fromChunks [
+        encodeInt (I.code val),
+        encodeInt (I.cast $ rows m),
+        encodeInt (I.cast $ cols m),
+        encodeInt (I.cast $ size),
+        let (fp, fs) = VS.unsafeToForeignPtr0 tris in BSI.PS (castForeignPtr fp) 0 (fs * sizeOf tri)]
+
+    where
+        encodeInt :: CInt -> BS.ByteString
+        encodeInt x = BSI.unsafeCreate (sizeOf x) $ (`poke` x) . castPtr
+        
+
+-- | Decode sparse matrix from the lazy byte string
+decode :: forall a b . I.Elem a b => BSL.ByteString -> SparseMatrix a b
+decode st = I.performIO $ do
+    ref <- newIORef st
+    let next size = readIORef ref >>= \a ->
+            let (b,c) = BSL.splitAt (fromIntegral size) a
+            in if BSL.length b /= fromIntegral size
+                then error "SparseMatrix.decode: stream exhausted"
+                else do
+                    writeIORef ref c
+                    return . BS.concat . BSL.toChunks $ b
+
+        val = undefined :: b
+        tri = undefined :: I.CTriplet b
+        triSize = sizeOf tri
+
+    code <- I.decodeInt <$> next I.intSize
+    when (code /= I.code val) $
+        fail "SparseMatrix.decode: wrong matrix type"
+    
+    rows <- I.decodeInt <$> next I.intSize
+    cols <- I.decodeInt <$> next I.intSize
+    size <- I.decodeInt <$> next I.intSize
+    
+    BSI.PS fp fo _ <- next (I.cast size * triSize)
+    BSL.null <$> readIORef ref >>= (`unless` fail "SparseMatrix.decode: stream underrun")
+
+    let tris = VS.unsafeFromForeignPtr0 (I.plusForeignPtr fp fo) (I.cast size)
+    
+    VS.unsafeWith tris $ \p -> alloca $ \pq -> do
+        I.call $ I.sparse_fromList rows cols p size pq
+        peek pq >>= mk
+
 _unop :: Storable c => (I.CSparseMatrixPtr a b -> Ptr c -> IO CString) -> (c -> IO d) -> SparseMatrix a b -> d
 _unop f g (SparseMatrix fp) = I.performIO $
     withForeignPtr fp $ \p ->
@@ -271,7 +330,7 @@ _unop f g (SparseMatrix fp) = I.performIO $
             peek pq >>= g
 
 _binop :: Storable c => (I.CSparseMatrixPtr a b -> I.CSparseMatrixPtr a b -> Ptr c -> IO CString) -> (c -> IO d) -> SparseMatrix a b -> SparseMatrix a b -> d
-_binop f g (SparseMatrix fp1) (SparseMatrix fp2) = I.performIO $ 
+_binop f g (SparseMatrix fp1) (SparseMatrix fp2) = I.performIO $
     withForeignPtr fp1 $ \p1 ->
         withForeignPtr fp2 $ \p2 ->
             alloca $ \pq -> do

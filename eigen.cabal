@@ -372,7 +372,8 @@ library
     ghc-options:        -Wall -fno-warn-name-shadowing
     build-depends:      base >= 3 && < 5,
                         vector >= 0.5 && < 0.11,
-                        primitive >= 0.1 && < 0.6
+                        primitive >= 0.1 && < 0.6,
+                        bytestring
 
     include-dirs:       eigen3, cbits
     c-sources:          cbits/eigen-proxy.cpp

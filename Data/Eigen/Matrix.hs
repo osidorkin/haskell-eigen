@@ -80,6 +80,9 @@ module Data.Eigen.Matrix (
     convert,
     upperTriangle,
     lowerTriangle,
+    -- * Matrix serialization
+    encode,
+    decode,
     -- * Mutable matrices
     thaw,
     freeze,
@@ -93,8 +96,10 @@ import qualified Prelude as P
 import qualified Data.List as L
 import Prelude hiding (null, sum, all, any, map, filter)
 import Data.Tuple
+import Data.STRef
 import Data.Complex hiding (conjugate)
 import Foreign.Ptr
+import Foreign.ForeignPtr
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Storable
@@ -108,6 +113,9 @@ import qualified Data.Vector.Storable as VS
 import qualified Data.Vector.Storable.Mutable as VSM
 import qualified Data.Eigen.Internal as I
 import qualified Data.Eigen.Matrix.Mutable as M
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Internal as BSI
 
 -- | Matrix to be used in pure computations, uses column major memory layout, features copy-free FFI with C++ <http://eigen.tuxfamily.org Eigen> library.
 
@@ -495,6 +503,37 @@ unsafeWith :: I.Elem a b => Matrix a b -> (Ptr b -> CInt -> CInt -> IO c) -> IO 
 unsafeWith m@(Matrix rows cols vals) f
     | not (valid m) = fail "matrix layout is invalid"
     | otherwise = VS.unsafeWith vals $ \p -> f p (I.cast rows) (I.cast cols)
+
+-- | Encode the matrix as a lazy byte string
+encode :: I.Elem a b => Matrix a b -> BSL.ByteString
+encode (Matrix rows cols vals) = BSL.fromChunks [
+        I.encodeInt (I.code (VS.head vals)),
+        I.encodeInt (I.cast rows),
+        I.encodeInt (I.cast cols),
+        let (fp, fs) = VS.unsafeToForeignPtr0 vals in BSI.PS (castForeignPtr fp) 0 (fs * sizeOf (VS.head vals))]
+
+-- | Decode matrix from the lazy byte string
+decode :: I.Elem a b => BSL.ByteString -> Matrix a b
+decode st = Matrix rows cols vals where
+    (rows, cols, vals) = runST $ do
+        ref <- newSTRef st
+        let next size = readSTRef ref >>= \a ->
+                let (b,c) = BSL.splitAt (fromIntegral size) a
+                in if BSL.length b /= fromIntegral size
+                    then error "Matrix.decode: stream exhausted"
+                    else do
+                        writeSTRef ref c
+                        return . BS.concat . BSL.toChunks $ b
+
+        code <- I.decodeInt <$> next I.intSize
+        when (code /= I.code (VS.head vals)) $
+            fail "Matrix.decode: wrong matrix type"
+        rows <- I.cast . I.decodeInt <$> next I.intSize
+        cols <- I.cast . I.decodeInt <$> next I.intSize
+        BSI.PS fp fo _ <- next (rows * cols * sizeOf (undefined :: CInt))
+        BSL.null <$> readSTRef ref >>= (`unless` fail "Matrix.decode: stream underrun")
+        return (rows, cols, VS.unsafeFromForeignPtr0 (I.plusForeignPtr fp fo) (rows * cols))
+
 
 _prop :: I.Elem a b => (Ptr b -> Ptr b -> CInt -> CInt -> IO CString) -> Matrix a b -> a
 _prop f m = I.cast $ I.performIO $ alloca $ \p -> do
