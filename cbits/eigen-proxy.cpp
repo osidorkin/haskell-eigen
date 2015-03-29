@@ -3,6 +3,7 @@
 #include <Eigen/LeastSquares>
 #include <stdio.h>
 #include <sstream>
+#include <memory>
 
 static bool inited = eigen_initParallel();
 
