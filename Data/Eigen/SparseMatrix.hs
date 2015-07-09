@@ -1,4 +1,7 @@
-{-# LANGUAGE GADTs, ScopedTypeVariables #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 module Data.Eigen.SparseMatrix (
     -- * SparseMatrix type
     -- | SparseMatrix aliases follows Eigen naming convention
