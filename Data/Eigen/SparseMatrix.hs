@@ -1,8 +1,11 @@
-{-# LANGUAGE GADTs, ScopedTypeVariables #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
+
 module Data.Eigen.SparseMatrix (
     -- * SparseMatrix type
     -- | SparseMatrix aliases follows Eigen naming convention
-    SparseMatrix,
+    SparseMatrix(..),
     SparseMatrixXf,
     SparseMatrixXd,
     SparseMatrixXcf,
@@ -24,12 +27,12 @@ module Data.Eigen.SparseMatrix (
     squaredNorm,
     blueNorm,
     block,
-    --compress,
-    --uncompress,
-    --compressed,
+    compress,
+    uncompress,
+    compressed,
     nonZeros,
-    --innerSize,
-    --outerSize,
+    innerSize,
+    outerSize,
     -- * Basic matrix algebra
     add,
     sub,
@@ -39,8 +42,6 @@ module Data.Eigen.SparseMatrix (
     scale,
     transpose,
     adjoint,
-    --lowerTriangle,
-    --upperTriangle,
     -- * Matrix serialization
     encode,
     decode,
@@ -50,7 +51,6 @@ import qualified Prelude as P
 import Prelude hiding (map)
 import qualified Data.List as L
 import Data.Complex
-import Data.IORef
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Storable
@@ -77,7 +77,9 @@ All the non zeros are stored in a single large buffer.
 Unlike the compressed format, there might be extra space inbetween the nonzeros of two successive colmuns
 (resp. rows) such that insertion of new non-zero can be done with limited memory reallocation and copies.
 
-A call to the function 'makeCompressed' turns the matrix into the standard compressed format compatible with many library.
+The results of Eigen's operations always produces compressed sparse matrices. On the other hand, the insertion of a new element into a SparseMatrix converts this later to the uncompressed mode.
+
+A call to the function 'compress' turns the matrix into the standard compressed format compatible with many library.
 
 Implementation deails of SparseMatrix are intentionally hidden behind ForeignPtr bacause Eigen doesn't provide mapping over plain data for sparse matricies.
 
@@ -156,9 +158,13 @@ blueNorm = _unop I.sparse_blueNorm (return . I.cast)
 block :: I.Elem a b => Int -> Int -> Int -> Int -> SparseMatrix a b -> SparseMatrix a b
 block row col rows cols = _unop (\p pq -> I.sparse_block p (I.cast row) (I.cast col) (I.cast rows) (I.cast cols) pq) mk
 
--- | not exposed currently
+-- | Number of non-zeros elements in the sparse matrix
+nonZeros :: I.Elem a b => SparseMatrix a b -> Int
+nonZeros = _unop I.sparse_nonZeros (return . I.cast)
+
+-- | Turns the matrix into the compressed format
 compress :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b
-compress = _unop I.sparse_compress mk
+compress = _unop I.sparse_makeCompressed mk
 
 -- | not exposed currently
 uncompress :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b
@@ -168,15 +174,11 @@ uncompress = _unop I.sparse_uncompress mk
 compressed :: I.Elem a b => SparseMatrix a b -> Bool
 compressed = _unop I.sparse_isCompressed (return . (/=0))
 
--- | Number of non-zeros elements in the sparse matrix
-nonZeros :: I.Elem a b => SparseMatrix a b -> Int
-nonZeros = _unop I.sparse_nonZeros (return . I.cast)
-
--- | not exposed currently
+-- | Minor dimension with respect to the storage order
 innerSize :: I.Elem a b => SparseMatrix a b -> Int
 innerSize = _unop I.sparse_innerSize (return . I.cast)
 
--- | not exposed currently
+-- | Major dimension with respect to the storage order
 outerSize :: I.Elem a b => SparseMatrix a b -> Int
 outerSize = _unop I.sparse_outerSize (return . I.cast)
 
@@ -196,14 +198,6 @@ transpose = _unop I.sparse_transpose mk
 adjoint :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b
 adjoint = _unop I.sparse_adjoint mk
 
--- | not exposed currently
-lowerTriangle :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b
-lowerTriangle = _unop I.sparse_lowerTriangle mk
-
--- | not exposed currently
-upperTriangle :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b
-upperTriangle = _unop I.sparse_upperTriangle mk
-
 -- | Adding two sparse matrices by adding the corresponding entries together. You can use @(+)@ function as well.
 add :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b -> SparseMatrix a b
 add = _binop I.sparse_add mk
@@ -218,21 +212,21 @@ mul = _binop I.sparse_mul mk
 
 -- | Construct sparse matrix of given size from the list of triplets (row, col, val)
 fromList :: I.Elem a b => Int -> Int -> [(Int, Int, a)] -> SparseMatrix a b
-fromList rows cols xs = I.performIO $ VS.unsafeWith vs $ \p -> alloca $ \pq -> do
+fromList rows cols tris = I.performIO $ VS.unsafeWith vs $ \p -> alloca $ \pq -> do
     I.call $ I.sparse_fromList (I.cast rows) (I.cast cols) p (I.cast $ VS.length vs) pq
     peek pq >>= mk
-    where vs = VS.fromList $ P.map (\(row,col,val) -> I.CTriplet (I.cast row) (I.cast col) (I.cast val)) xs
+    where vs = VS.fromList $ P.map (\(row,col,val) -> I.CTriplet (I.cast row) (I.cast col) (I.cast val)) tris
 
 -- | Convert sparse matrix to the list of triplets (row, col, val). Compressed elements will not be included
 toList :: I.Elem a b => SparseMatrix a b -> [(Int, Int, a)]
 toList m@(SparseMatrix fp) = I.performIO $ do
-    let s = nonZeros m
-    xs <- VSM.new s
+    let size = nonZeros m
+    tris <- VSM.new size
     withForeignPtr fp $ \p ->
-        VSM.unsafeWith xs $ \q ->
-            I.call $ I.sparse_toList p q (I.cast s)
+        VSM.unsafeWith tris $ \q ->
+            I.call $ I.sparse_toList p q (I.cast size)
     let f (I.CTriplet row col val) = (I.cast row, I.cast col, I.cast val)
-    P.map f . VS.toList <$> VS.unsafeFreeze xs
+    P.map f . VS.toList <$> VS.unsafeFreeze tris
 
 -- | Construct sparse matrix of two-dimensional list of values. Matrix dimensions will be detected automatically. Zero values will be compressed.
 fromDenseList :: (I.Elem a b, Eq a) => [[a]] -> SparseMatrix a b
@@ -274,11 +268,11 @@ encode m@(SparseMatrix fp) = I.performIO $ do
         VSM.unsafeWith tris $ \q ->
             I.call $ I.sparse_toList p q (I.cast size)
     tris <- VS.unsafeFreeze tris
-    let 
+    let
         tri@(I.CTriplet _ _ val) = VS.head tris
 
     return $ BSL.fromChunks [
-        encodeInt (I.code val),
+        encodeInt (I.magicCode val),
         encodeInt (I.cast $ rows m),
         encodeInt (I.cast $ cols m),
         encodeInt (I.cast $ size),
@@ -287,37 +281,32 @@ encode m@(SparseMatrix fp) = I.performIO $ do
     where
         encodeInt :: CInt -> BS.ByteString
         encodeInt x = BSI.unsafeCreate (sizeOf x) $ (`poke` x) . castPtr
-        
+
 
 -- | Decode sparse matrix from the lazy byte string
 decode :: forall a b . I.Elem a b => BSL.ByteString -> SparseMatrix a b
 decode st = I.performIO $ do
-    ref <- newIORef st
-    let next size = readIORef ref >>= \a ->
-            let (b,c) = BSL.splitAt (fromIntegral size) a
-            in if BSL.length b /= fromIntegral size
-                then error "SparseMatrix.decode: stream exhausted"
-                else do
-                    writeIORef ref c
-                    return . BS.concat . BSL.toChunks $ b
-
+    let
         val = undefined :: b
         tri = undefined :: I.CTriplet b
         triSize = sizeOf tri
 
-    code <- I.decodeInt <$> next I.intSize
-    when (code /= I.code val) $
+    st <- I.openStream st
+
+    code <- I.decodeInt <$> I.readStream st I.intSize
+    when (code /= I.magicCode val) $
         fail "SparseMatrix.decode: wrong matrix type"
-    
-    rows <- I.decodeInt <$> next I.intSize
-    cols <- I.decodeInt <$> next I.intSize
-    size <- I.decodeInt <$> next I.intSize
-    
-    BSI.PS fp fo _ <- next (I.cast size * triSize)
-    BSL.null <$> readIORef ref >>= (`unless` fail "SparseMatrix.decode: stream underrun")
+
+    rows <- I.readInt st
+    cols <- I.readInt st
+    size <- I.readInt st
+
+    BSI.PS fp fo _ <- I.readStream st (I.cast size * triSize)
+
+    I.closeStream st
 
     let tris = VS.unsafeFromForeignPtr0 (I.plusForeignPtr fp fo) (I.cast size)
-    
+
     VS.unsafeWith tris $ \p -> alloca $ \pq -> do
         I.call $ I.sparse_fromList rows cols p size pq
         peek pq >>= mk

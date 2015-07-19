@@ -1,7 +1,7 @@
 name:           eigen
-version:        2.1.0
+version:        2.1.2
 homepage:       https://github.com/osidorkin/haskell-eigen
-synopsis:       Eigen C++ library (linear algebra: matrices, vectors, numerical solvers).
+synopsis:       Eigen C++ library (linear algebra: matrices, sparse matrices, vectors, numerical solvers).
 description:    This module provides Haskell binding for Eigen C++ library.
                 Eigen is a C++ template library for linear algebra: matrices, vectors, numerical solvers, and related algorithms.
                 Eigen home page is <http://eigen.tuxfamily.org/>.
@@ -22,7 +22,11 @@ maintainer:     Oleg Sidorkin <oleg.sidorkin@gmail.com>
 cabal-version:  >= 1.8
 build-type:     Simple
 tested-with:    GHC ==7.8.3
-extra-source-files: cbits/eigen-proxy.h
+extra-source-files: cbits/eigen-runtime.h
+    cbits/eigen-dense.h
+    cbits/eigen-la.h
+    cbits/eigen-sparse.h
+    cbits/eigen-sparse-la.h
 	{eigen3}
 
 source-repository head
@@ -32,21 +36,26 @@ source-repository head
 
 library
     exposed-modules:    Data.Eigen.LA
+                        Data.Eigen.SparseLA
                         Data.Eigen.Matrix
                         Data.Eigen.Matrix.Mutable
                         Data.Eigen.SparseMatrix
                         Data.Eigen.Parallel
-
-    other-modules:      Data.Eigen.Internal
+                        Data.Eigen.Internal
 
     ghc-options:        -Wall -fno-warn-name-shadowing
     build-depends:      base >= 3 && < 5,
-                        vector >= 0.5 && < 0.11,
-                        primitive >= 0.1 && < 0.6,
-                        bytestring
+                        vector >= 0.5 && < 0.12,
+                        primitive >= 0.1 && < 0.7,
+                        bytestring,
+                        transformers >= 0.3
 
     include-dirs:       eigen3, cbits
-    c-sources:          cbits/eigen-proxy.cpp
+    c-sources:          cbits/eigen-runtime.cpp
+                        cbits/eigen-dense.cpp
+                        cbits/eigen-sparse.cpp
+                        cbits/eigen-la.cpp
+                        cbits/eigen-sparse-la.cpp
     extra-libraries:    stdc++
 
 Test-Suite test-solve

@@ -30,7 +30,7 @@ main = do
     putStrLn "\n-2.34666 - 0.25349 x1 - 0.174965 x2"
     putStrLn "done"
 
-    print $ (identity 4 :: MatrixXd)
+    print $ (identity 4 4 :: MatrixXd)
     print $ M.normalize a
     print $ M.transpose a
 

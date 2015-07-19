@@ -148,7 +148,7 @@ data Decomposition
     -- | Robust Cholesky decomposition of a matrix with pivoting.
     | LDLT
     -- | Two-sided Jacobi SVD decomposition of a rectangular matrix.
-    | JacobiSVD deriving (Show, Enum)
+    | JacobiSVD deriving (Eq, Enum, Show, Read)
 
 
 -- | [x = solve d a b] finds a solution @x@ of @ax = b@ equation using decomposition @d@
