@@ -1,4 +1,6 @@
-{-# LANGUAGE RecordWildCards, ForeignFunctionInterface #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE RecordWildCards #-}
 
 {- |
 
@@ -110,7 +112,10 @@ import Prelude as P
 import Foreign.Storable
 import Foreign.Marshal.Alloc
 import qualified Foreign.Concurrent as FC
+#if __GLASGOW_HASKELL__ >= 710
+#else
 import Control.Applicative
+#endif
 import Data.Eigen.Matrix
 import qualified Data.Eigen.Internal as I
 import qualified Data.Eigen.Matrix.Mutable as M

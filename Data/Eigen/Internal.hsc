@@ -1,5 +1,13 @@
 {-# OPTIONS_HADDOCK hide #-}
-{-# LANGUAGE MultiParamTypeClasses, ForeignFunctionInterface, ScopedTypeVariables, FunctionalDependencies, FlexibleInstances, EmptyDataDecls, CPP #-}
+
+{-# LANGUAGE CPP #-} 
+{-# LANGUAGE EmptyDataDecls  #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE ForeignFunctionInterface  #-}
+{-# LANGUAGE FunctionalDependencies  #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+
 module Data.Eigen.Internal where
 
 import Foreign.Ptr
@@ -8,7 +16,10 @@ import Foreign.Storable
 import Foreign.C.Types
 import Foreign.C.String
 import Control.Monad
+#if __GLASGOW_HASKELL__ >= 710
+#else
 import Control.Applicative
+#endif
 import System.IO.Unsafe
 import Data.Complex
 import Data.IORef
@@ -113,33 +124,33 @@ instance Code (CComplex CDouble) where; code _ = 3
 magicCode :: Code a => a -> CInt
 magicCode x = code x `xor` 0x45696730
 
-#let api name, args = "foreign import ccall \"eigen_%s\" c_%s :: CInt -> %s\n%s :: forall b . Code b => %s\n%s = c_%s (code (undefined :: b))", #name, #name, args, #name, args, #name, #name
+#let api1 name, args = "foreign import ccall \"eigen_%s\" c_%s :: CInt -> %s\n%s :: forall b . Code b => %s\n%s = c_%s (code (undefined :: b))", #name, #name, args, #name, args, #name, #name
 
-#api random,        "Ptr b -> CInt -> CInt -> IO CString"
-#api identity,      "Ptr b -> CInt -> CInt -> IO CString"
-#api add,           "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
-#api sub,           "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
-#api mul,           "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
-#api diagonal,      "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
-#api transpose,     "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
-#api inverse,       "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
-#api adjoint,       "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
-#api conjugate,     "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
-#api normalize,     "Ptr b -> CInt -> CInt -> IO CString"
-#api sum,           "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
-#api prod,          "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
-#api mean,          "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
-#api norm,          "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
-#api trace,         "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
-#api squaredNorm,   "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
-#api blueNorm,      "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
-#api hypotNorm,     "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
-#api determinant,   "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
-#api rank,          "CInt -> Ptr CInt -> Ptr b -> CInt -> CInt -> IO CString"
-#api image,         "CInt -> Ptr (Ptr b) -> Ptr CInt -> Ptr CInt -> Ptr b -> CInt -> CInt -> IO CString"
-#api kernel,        "CInt -> Ptr (Ptr b) -> Ptr CInt -> Ptr CInt -> Ptr b -> CInt -> CInt -> IO CString"
-#api solve,         "CInt -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
-#api relativeError, "Ptr b -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 random,        "Ptr b -> CInt -> CInt -> IO CString"
+#api1 identity,      "Ptr b -> CInt -> CInt -> IO CString"
+#api1 add,           "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 sub,           "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 mul,           "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 diagonal,      "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 transpose,     "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 inverse,       "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 adjoint,       "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 conjugate,     "Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 normalize,     "Ptr b -> CInt -> CInt -> IO CString"
+#api1 sum,           "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 prod,          "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 mean,          "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 norm,          "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 trace,         "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 squaredNorm,   "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 blueNorm,      "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 hypotNorm,     "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 determinant,   "Ptr b -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 rank,          "CInt -> Ptr CInt -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 image,         "CInt -> Ptr (Ptr b) -> Ptr CInt -> Ptr CInt -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 kernel,        "CInt -> Ptr (Ptr b) -> Ptr CInt -> Ptr CInt -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 solve,         "CInt -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
+#api1 relativeError, "Ptr b -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString"
 
 #let api2 name, args = "foreign import ccall \"eigen_%s\" c_%s :: CInt -> %s\n%s :: forall a b . Code b => %s\n%s = c_%s (code (undefined :: b))", #name, #name, args, #name, args, #name, #name
 
@@ -171,7 +182,7 @@ magicCode x = code x `xor` 0x45696730
 #api2 sparse_fromMatrix,    "Ptr b -> CInt -> CInt -> Ptr (CSparseMatrixPtr a b) -> IO CString"
 #api2 sparse_toMatrix,      "CSparseMatrixPtr a b -> Ptr b -> CInt -> CInt -> IO CString"
 
-#let api3 name, args = "foreign import ccall \"eigen_%s\" c_%s :: CInt -> CInt -> %s\n%s :: forall s a b . (Enum s, Code b) => s -> %s\n%s s = c_%s (code (undefined :: b)) (cast (fromEnum s))", #name, #name, args, #name, args, #name, #name
+#let api3 name, args = "foreign import ccall \"eigen_%s\" c_%s :: CInt -> CInt -> %s\n%s :: forall s a b . (Code s, Code b) => s -> %s\n%s s = c_%s (code (undefined :: b)) (code s)", #name, #name, args, #name, args, #name, #name
 
 #api3 sparse_la_newSolver,          "Ptr (CSolverPtr a b) -> IO CString"
 #api3 sparse_la_freeSolver,         "CSolverPtr a b -> IO CString"
@@ -187,6 +198,19 @@ magicCode x = code x `xor` 0x45696730
 #api3 sparse_la_iterations,         "CSolverPtr a b -> Ptr CInt -> IO CString"
 #api3 sparse_la_solve,              "CSolverPtr a b -> CSparseMatrixPtr a b -> Ptr (CSparseMatrixPtr a b) -> IO CString"
 -- #api3 sparse_la_solveWithGuess,     "CSolverPtr a b -> CSparseMatrixPtr a b -> CSparseMatrixPtr a b -> Ptr (CSparseMatrixPtr a b) -> IO CString"
+#api3 sparse_la_matrixQ,            "CSolverPtr a b -> Ptr (CSparseMatrixPtr a b) -> IO CString"
+#api3 sparse_la_matrixR,            "CSolverPtr a b -> Ptr (CSparseMatrixPtr a b) -> IO CString"
+#api3 sparse_la_setPivotThreshold,  "CSolverPtr a b -> CDouble -> IO CString"
+#api3 sparse_la_rank,               "CSolverPtr a b -> Ptr CInt -> IO CString"
+#api3 sparse_la_matrixL,            "CSolverPtr a b -> Ptr (CSparseMatrixPtr a b) -> IO CString"
+#api3 sparse_la_matrixU,            "CSolverPtr a b -> Ptr (CSparseMatrixPtr a b) -> IO CString"
+#api3 sparse_la_setSymmetric,       "CSolverPtr a b -> CInt -> IO CString"
+#api3 sparse_la_simplicialFactorize,"CSolverPtr a b -> CSparseMatrixPtr a b -> IO CString"
+#api3 sparse_la_determinant,        "CSolverPtr a b -> Ptr b -> IO CString"
+#api3 sparse_la_logAbsDeterminant,  "CSolverPtr a b -> Ptr b -> IO CString"
+#api3 sparse_la_absDeterminant,     "CSolverPtr a b -> Ptr b -> IO CString"
+#api3 sparse_la_signDeterminant,    "CSolverPtr a b -> Ptr b -> IO CString"
+
 
 openStream :: BSL.ByteString -> IO (IORef BSL.ByteString)
 openStream = newIORef
@@ -195,7 +219,7 @@ readStream :: IORef BSL.ByteString -> Int -> IO BS.ByteString
 readStream ref size = readIORef ref >>= \a ->
     let (b,c) = BSL.splitAt (fromIntegral size) a
     in if BSL.length b /= fromIntegral size
-        then error "readStream: stream exhausted"
+        then fail "readStream: stream exhausted"
         else do
             writeIORef ref c
             return . BS.concat . BSL.toChunks $ b

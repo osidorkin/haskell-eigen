@@ -1,10 +1,35 @@
 name:           eigen
-version:        2.1.2
+version:        2.1.3
 homepage:       https://github.com/osidorkin/haskell-eigen
-synopsis:       Eigen C++ library (linear algebra: matrices, vectors, numerical solvers).
-description:    This module provides Haskell binding for Eigen C++ library.
-                Eigen is a C++ template library for linear algebra: matrices, vectors, numerical solvers, and related algorithms.
-                Eigen home page is <http://eigen.tuxfamily.org/>.
+synopsis:       Eigen C++ library (linear algebra: matrices, sparse matrices, vectors, numerical solvers).
+description:    This module provides Haskell binding for <http://eigen.tuxfamily.org/ Eigen C++ library>.
+                .
+                Eigen is versatile.
+                .
+                * It supports all matrix sizes, from small fixed-size matrices to arbitrarily large dense matrices, and even sparse matrices.
+                * It supports all standard numeric types, including std::complex, integers, and is easily extensible to custom numeric types.
+                * It supports various <http://eigen.tuxfamily.org/dox/group__TopicLinearAlgebraDecompositions.html matrix decompositions> and <http://eigen.tuxfamily.org/dox/group__TutorialGeometry.html geometry features>.
+                * Its ecosystem of <http://eigen.tuxfamily.org/dox/unsupported/index.html unsupported modules> provides many specialized features such as non-linear optimization, matrix functions, a polynomial solver, FFT, and much more.
+                .
+                Eigen is fast.
+                .
+                * Expression templates allow to intelligently remove temporaries and enable <http://eigen.tuxfamily.org/dox/TopicLazyEvaluation.html lazy evaluation>, when that is appropriate.
+                * <http://eigen.tuxfamily.org/index.php?title=FAQ#Vectorization Explicit vectorization> is performed for SSE 2/3/4, ARM NEON, and AltiVec instruction sets, with graceful fallback to non-vectorized code.
+                * Fixed-size matrices are fully optimized: dynamic memory allocation is avoided, and the loops are unrolled when that makes sense.
+                * For large matrices, special attention is paid to cache-friendliness.
+                .
+                Eigen is reliable.
+                .
+                * Algorithms are carefully selected for reliability. Reliability trade-offs are <http://eigen.tuxfamily.org/dox/group__TopicLinearAlgebraDecompositions.html clearly documented> and <http://eigen.tuxfamily.org/dox/classEigen_1_1JacobiSVD.html extremely> <http://eigen.tuxfamily.org/dox/classEigen_1_1FullPivHouseholderQR.html safe> <http://eigen.tuxfamily.org/dox/classEigen_1_1FullPivLU.html decompositions> are available.
+                * Eigen is thoroughly tested through its own <http://eigen.tuxfamily.org/index.php?title=Tests test suite> (over 500 executables), the standard BLAS test suite, and parts of the LAPACK test suite.
+                .
+                Eigen is elegant.
+                .
+                * The API is extremely <http://eigen.tuxfamily.org/index.php?title=API_Showcase clean and expressive> while feeling natural to C++ programmers, thanks to expression templates.
+                * Implementing an algorithm on top of Eigen feels like just copying pseudocode.
+                .
+                Eigen has good compiler support as we run our test suite against many compilers to guarantee reliability and work around any compiler bugs.
+                Eigen also is standard C++98 and maintains very reasonable compilation times.
                 .
                 Eigen is licensed under the MPL2, which is a simple weak copyleft license. Common questions about the MPL2 are answered in the official MPL2 FAQ at <http://www.mozilla.org/MPL/2.0/FAQ.html>.
                 .
@@ -12,7 +37,7 @@ description:    This module provides Haskell binding for Eigen C++ library.
                 .
                 Virtually any software may use Eigen. For example, closed-source software may use Eigen without having to disclose its own source code. Many proprietary and closed-source software projects are using Eigen right now, as well as many BSD-licensed projects.
                 .
-                Some parts of documentation strings are based or replicate original Eigen documentation which is available at <http://eigen.tuxfamily.org/dox/>.
+                Documentation at the most extent replicates original <http://eigen.tuxfamily.org/dox/ Eigen documentation>.
 category:       Data, Math, Algebra, Statistics, Algorithms, Numeric
 license:        BSD3
 license-file:   LICENSE
@@ -31,166 +56,6 @@ extra-source-files: cbits/eigen-runtime.h
 	eigen3/.hgeol
 	eigen3/.hgignore
 	eigen3/.hgtags
-	eigen3/bench/basicbench.cxxlist
-	eigen3/bench/basicbenchmark.cpp
-	eigen3/bench/basicbenchmark.h
-	eigen3/bench/bench_gemm.cpp
-	eigen3/bench/bench_multi_compilers.sh
-	eigen3/bench/bench_norm.cpp
-	eigen3/bench/bench_reverse.cpp
-	eigen3/bench/bench_sum.cpp
-	eigen3/bench/bench_unrolling
-	eigen3/bench/benchBlasGemm.cpp
-	eigen3/bench/benchCholesky.cpp
-	eigen3/bench/benchEigenSolver.cpp
-	eigen3/bench/benchFFT.cpp
-	eigen3/bench/benchGeometry.cpp
-	eigen3/bench/benchmark.cpp
-	eigen3/bench/benchmark_suite
-	eigen3/bench/benchmarkSlice.cpp
-	eigen3/bench/benchmarkX.cpp
-	eigen3/bench/benchmarkXcwise.cpp
-	eigen3/bench/BenchSparseUtil.h
-	eigen3/bench/BenchTimer.h
-	eigen3/bench/BenchUtil.h
-	eigen3/bench/benchVecAdd.cpp
-	eigen3/bench/btl/actions/action_aat_product.hh
-	eigen3/bench/btl/actions/action_ata_product.hh
-	eigen3/bench/btl/actions/action_atv_product.hh
-	eigen3/bench/btl/actions/action_axpby.hh
-	eigen3/bench/btl/actions/action_axpy.hh
-	eigen3/bench/btl/actions/action_cholesky.hh
-	eigen3/bench/btl/actions/action_ger.hh
-	eigen3/bench/btl/actions/action_hessenberg.hh
-	eigen3/bench/btl/actions/action_lu_decomp.hh
-	eigen3/bench/btl/actions/action_lu_solve.hh
-	eigen3/bench/btl/actions/action_matrix_matrix_product.hh
-	eigen3/bench/btl/actions/action_matrix_matrix_product_bis.hh
-	eigen3/bench/btl/actions/action_matrix_vector_product.hh
-	eigen3/bench/btl/actions/action_partial_lu.hh
-	eigen3/bench/btl/actions/action_rot.hh
-	eigen3/bench/btl/actions/action_symv.hh
-	eigen3/bench/btl/actions/action_syr2.hh
-	eigen3/bench/btl/actions/action_trisolve.hh
-	eigen3/bench/btl/actions/action_trisolve_matrix.hh
-	eigen3/bench/btl/actions/action_trmm.hh
-	eigen3/bench/btl/actions/basic_actions.hh
-	eigen3/bench/btl/cmake/FindACML.cmake
-	eigen3/bench/btl/cmake/FindATLAS.cmake
-	eigen3/bench/btl/cmake/FindBlitz.cmake
-	eigen3/bench/btl/cmake/FindCBLAS.cmake
-	eigen3/bench/btl/cmake/FindGMM.cmake
-	eigen3/bench/btl/cmake/FindGOTO.cmake
-	eigen3/bench/btl/cmake/FindGOTO2.cmake
-	eigen3/bench/btl/cmake/FindMKL.cmake
-	eigen3/bench/btl/cmake/FindMTL4.cmake
-	eigen3/bench/btl/cmake/FindPackageHandleStandardArgs.cmake
-	eigen3/bench/btl/cmake/FindTvmet.cmake
-	eigen3/bench/btl/cmake/MacroOptionalAddSubdirectory.cmake
-	eigen3/bench/btl/CMakeLists.txt
-	eigen3/bench/btl/COPYING
-	eigen3/bench/btl/data/action_settings.txt
-	eigen3/bench/btl/data/CMakeLists.txt
-	eigen3/bench/btl/data/gnuplot_common_settings.hh
-	eigen3/bench/btl/data/go_mean
-	eigen3/bench/btl/data/mean.cxx
-	eigen3/bench/btl/data/mk_gnuplot_script.sh
-	eigen3/bench/btl/data/mk_mean_script.sh
-	eigen3/bench/btl/data/mk_new_gnuplot.sh
-	eigen3/bench/btl/data/perlib_plot_settings.txt
-	eigen3/bench/btl/data/regularize.cxx
-	eigen3/bench/btl/data/smooth.cxx
-	eigen3/bench/btl/data/smooth_all.sh
-	eigen3/bench/btl/generic_bench/bench.hh
-	eigen3/bench/btl/generic_bench/bench_parameter.hh
-	eigen3/bench/btl/generic_bench/btl.hh
-	eigen3/bench/btl/generic_bench/init/init_function.hh
-	eigen3/bench/btl/generic_bench/init/init_matrix.hh
-	eigen3/bench/btl/generic_bench/init/init_vector.hh
-	eigen3/bench/btl/generic_bench/static/bench_static.hh
-	eigen3/bench/btl/generic_bench/static/intel_bench_fixed_size.hh
-	eigen3/bench/btl/generic_bench/static/static_size_generator.hh
-	eigen3/bench/btl/generic_bench/timers/mixed_perf_analyzer.hh
-	eigen3/bench/btl/generic_bench/timers/portable_perf_analyzer.hh
-	eigen3/bench/btl/generic_bench/timers/portable_perf_analyzer_old.hh
-	eigen3/bench/btl/generic_bench/timers/portable_timer.hh
-	eigen3/bench/btl/generic_bench/timers/STL_perf_analyzer.hh
-	eigen3/bench/btl/generic_bench/timers/STL_timer.hh
-	eigen3/bench/btl/generic_bench/timers/x86_perf_analyzer.hh
-	eigen3/bench/btl/generic_bench/timers/x86_timer.hh
-	eigen3/bench/btl/generic_bench/utils/size_lin_log.hh
-	eigen3/bench/btl/generic_bench/utils/size_log.hh
-	eigen3/bench/btl/generic_bench/utils/utilities.h
-	eigen3/bench/btl/generic_bench/utils/xy_file.hh
-	eigen3/bench/btl/libs/BLAS/blas.h
-	eigen3/bench/btl/libs/BLAS/blas_interface.hh
-	eigen3/bench/btl/libs/BLAS/blas_interface_impl.hh
-	eigen3/bench/btl/libs/BLAS/c_interface_base.h
-	eigen3/bench/btl/libs/BLAS/CMakeLists.txt
-	eigen3/bench/btl/libs/BLAS/main.cpp
-	eigen3/bench/btl/libs/blitz/blitz_interface.hh
-	eigen3/bench/btl/libs/blitz/blitz_LU_solve_interface.hh
-	eigen3/bench/btl/libs/blitz/btl_blitz.cpp
-	eigen3/bench/btl/libs/blitz/btl_tiny_blitz.cpp
-	eigen3/bench/btl/libs/blitz/CMakeLists.txt
-	eigen3/bench/btl/libs/blitz/tiny_blitz_interface.hh
-	eigen3/bench/btl/libs/eigen2/btl_tiny_eigen2.cpp
-	eigen3/bench/btl/libs/eigen2/CMakeLists.txt
-	eigen3/bench/btl/libs/eigen2/eigen2_interface.hh
-	eigen3/bench/btl/libs/eigen2/main_adv.cpp
-	eigen3/bench/btl/libs/eigen2/main_linear.cpp
-	eigen3/bench/btl/libs/eigen2/main_matmat.cpp
-	eigen3/bench/btl/libs/eigen2/main_vecmat.cpp
-	eigen3/bench/btl/libs/eigen3/btl_tiny_eigen3.cpp
-	eigen3/bench/btl/libs/eigen3/CMakeLists.txt
-	eigen3/bench/btl/libs/eigen3/eigen3_interface.hh
-	eigen3/bench/btl/libs/eigen3/main_adv.cpp
-	eigen3/bench/btl/libs/eigen3/main_linear.cpp
-	eigen3/bench/btl/libs/eigen3/main_matmat.cpp
-	eigen3/bench/btl/libs/eigen3/main_vecmat.cpp
-	eigen3/bench/btl/libs/gmm/CMakeLists.txt
-	eigen3/bench/btl/libs/gmm/gmm_interface.hh
-	eigen3/bench/btl/libs/gmm/gmm_LU_solve_interface.hh
-	eigen3/bench/btl/libs/gmm/main.cpp
-	eigen3/bench/btl/libs/mtl4/.kdbgrc.main
-	eigen3/bench/btl/libs/mtl4/CMakeLists.txt
-	eigen3/bench/btl/libs/mtl4/main.cpp
-	eigen3/bench/btl/libs/mtl4/mtl4_interface.hh
-	eigen3/bench/btl/libs/mtl4/mtl4_LU_solve_interface.hh
-	eigen3/bench/btl/libs/STL/CMakeLists.txt
-	eigen3/bench/btl/libs/STL/main.cpp
-	eigen3/bench/btl/libs/STL/STL_interface.hh
-	eigen3/bench/btl/libs/tvmet/CMakeLists.txt
-	eigen3/bench/btl/libs/tvmet/main.cpp
-	eigen3/bench/btl/libs/tvmet/tvmet_interface.hh
-	eigen3/bench/btl/libs/ublas/CMakeLists.txt
-	eigen3/bench/btl/libs/ublas/main.cpp
-	eigen3/bench/btl/libs/ublas/ublas_interface.hh
-	eigen3/bench/btl/README
-	eigen3/bench/check_cache_queries.cpp
-	eigen3/bench/eig33.cpp
-	eigen3/bench/geometry.cpp
-	eigen3/bench/product_threshold.cpp
-	eigen3/bench/quat_slerp.cpp
-	eigen3/bench/quatmul.cpp
-	eigen3/bench/README.txt
-	eigen3/bench/sparse_cholesky.cpp
-	eigen3/bench/sparse_dense_product.cpp
-	eigen3/bench/sparse_lu.cpp
-	eigen3/bench/sparse_product.cpp
-	eigen3/bench/sparse_randomsetter.cpp
-	eigen3/bench/sparse_setter.cpp
-	eigen3/bench/sparse_transpose.cpp
-	eigen3/bench/sparse_trisolver.cpp
-	eigen3/bench/spbench/CMakeLists.txt
-	eigen3/bench/spbench/sp_solver.cpp
-	eigen3/bench/spbench/spbench.dtd
-	eigen3/bench/spbench/spbenchsolver.cpp
-	eigen3/bench/spbench/spbenchsolver.h
-	eigen3/bench/spbench/spbenchstyle.h
-	eigen3/bench/spbench/test_sparseLU.cpp
-	eigen3/bench/spmv.cpp
-	eigen3/bench/vdw_new.cpp
 	eigen3/blas/BandTriangularSolver.h
 	eigen3/blas/chbmv.f
 	eigen3/blas/chpmv.f

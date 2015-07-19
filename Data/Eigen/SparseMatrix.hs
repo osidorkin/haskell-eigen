@@ -1,6 +1,7 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE FlexibleContexts #-}
 
 module Data.Eigen.SparseMatrix (
     -- * SparseMatrix type
@@ -58,7 +59,10 @@ import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
 import Control.Monad
+#if __GLASGOW_HASKELL__ >= 710
+#else
 import Control.Applicative
+#endif
 import qualified Data.Eigen.Matrix as M
 import qualified Data.Eigen.Matrix.Mutable as MM
 import qualified Foreign.Concurrent as FC

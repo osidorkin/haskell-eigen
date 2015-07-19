@@ -15,9 +15,10 @@ main = do
     putStrLn "Here is the vector b:"
     print $ b
 
-    runSolverT SparseLU $ do
+    runSolverT (SparseLU COLAMDOrdering) $ do
         compute a
         x <- solve b
         info >>= lift.print
+        determinant >>= lift.print
         lift $ putStrLn "The solution is:"
         lift $ print x

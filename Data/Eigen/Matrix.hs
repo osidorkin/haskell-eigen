@@ -1,4 +1,11 @@
-{-# LANGUAGE RecordWildCards, MultiParamTypeClasses, Rank2Types, ScopedTypeVariables, FunctionalDependencies, GADTs #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Data.Eigen.Matrix (
     -- * Matrix type
     -- | Matrix aliases follows Eigen naming convention
@@ -78,8 +85,10 @@ module Data.Eigen.Matrix (
     normalize,
     modify,
     convert,
-    upperTriangle,
+    TriangularMode(..),
+    triangularView,
     lowerTriangle,
+    upperTriangle,
     -- * Matrix serialization
     encode,
     decode,
@@ -107,7 +116,10 @@ import Text.Printf
 import Control.Monad
 import Control.Monad.ST
 import Control.Monad.Primitive
+#if __GLASGOW_HASKELL__ >= 710
+#else
 import Control.Applicative hiding (empty)
+#endif
 import qualified Data.Vector.Storable as VS
 import qualified Data.Vector.Storable.Mutable as VSM
 import qualified Data.Eigen.Internal as I
@@ -136,7 +148,7 @@ instance (I.Elem a b, Show a) => Show (Matrix a b) where
         "\n", L.intercalate "\n" $ P.map (L.intercalate "\t" . P.map show) $ toList m, "\n"]
 
 
--- | Shortcuts for basic matrix math
+-- | Basic matrix math exposed through Num instance: `(*)`, `(+)`, `(-)`, `fromInteger`, `signum`, `abs`, `negate`
 instance I.Elem a b => Num (Matrix a b) where
     (*) = mul
     (+) = add
@@ -147,26 +159,32 @@ instance I.Elem a b => Num (Matrix a b) where
     negate = map negate
 
 -- | Empty 0x0 matrix
+{-# INLINE empty #-}
 empty :: I.Elem a b => Matrix a b
 empty = Matrix 0 0 VS.empty
 
 -- | Is matrix empty?
+{-# INLINE null #-}
 null :: I.Elem a b => Matrix a b -> Bool
 null (Matrix rows cols _) = rows == 0 && cols == 0
 
 -- | Is matrix square?
+{-# INLINE square #-}
 square :: I.Elem a b => Matrix a b -> Bool
 square (Matrix rows cols _) = rows == cols
 
 -- | Matrix where all coeffs are filled with given value
+{-# INLINE constant #-}
 constant :: I.Elem a b => Int -> Int -> a -> Matrix a b
 constant rows cols val = Matrix rows cols $ VS.replicate (rows * cols) (I.cast val)
 
 -- | Matrix where all coeff are 0
+{-# INLINE zero #-}
 zero :: I.Elem a b => Int -> Int -> Matrix a b
 zero rows cols = constant rows cols 0
 
 -- | Matrix where all coeff are 1
+{-# INLINE ones #-}
 ones :: I.Elem a b => Int -> Int -> Matrix a b
 ones rows cols = constant rows cols 1
 
@@ -185,25 +203,27 @@ random rows cols = do
     unsafeFreeze m
 
 -- | Number of rows for the matrix
+{-# INLINE rows #-}
 rows :: I.Elem a b => Matrix a b -> Int
 rows (Matrix rows _ _) = rows
 
 -- | Number of columns for the matrix
+{-# INLINE cols #-}
 cols :: I.Elem a b => Matrix a b -> Int
 cols (Matrix _ cols _) = cols
 
-vals :: I.Elem a b => Matrix a b -> VS.Vector b
-vals (Matrix _ _ vals) = vals
-
 -- | Mtrix size as (rows, cols) pair
+{-# INLINE dims #-}
 dims :: I.Elem a b => Matrix a b -> (Int, Int)
 dims (Matrix rows cols _) = (rows, cols)
 
 -- | Matrix coefficient at specific row and col
+{-# INLINE (!) #-}
 (!) :: I.Elem a b => Matrix a b -> (Int, Int) -> a
 (!) m (row,col) = coeff row col m
 
 -- | Matrix coefficient at specific row and col
+{-# INLINE coeff #-}
 coeff :: I.Elem a b => Int -> Int -> Matrix a b -> a
 coeff row col m@(Matrix rows cols _)
     | not (valid m) = error "matrix is not valid"
@@ -212,14 +232,17 @@ coeff row col m@(Matrix rows cols _)
     | otherwise = unsafeCoeff row col m
 
 -- | Unsafe version of coeff function. No bounds check performed so SEGFAULT possible
+{-# INLINE unsafeCoeff #-}
 unsafeCoeff :: I.Elem a b => Int -> Int -> Matrix a b -> a
 unsafeCoeff row col (Matrix rows _ vals) = I.cast $ VS.unsafeIndex vals $ col * rows + row
 
 -- | List of coefficients for the given col
+{-# INLINE col #-}
 col :: I.Elem a b => Int -> Matrix a b -> [a]
 col c m@(Matrix rows _ _) = [coeff r c m | r <- [0..pred rows]]
 
 -- | List of coefficients for the given row
+{-# INLINE row #-}
 row :: I.Elem a b => Int -> Matrix a b -> [a]
 row r m@(Matrix _ cols _) = [coeff r c m | c <- [0..pred cols]]
 
@@ -229,31 +252,38 @@ block startRow startCol blockRows blockCols m =
     generate blockRows blockCols $ \row col ->
         coeff (startRow + row) (startCol + col) m
 
--- | Verify matrix dimensions and values memory layout
+-- | Verify matrix dimensions and memory layout
+{-# INLINE valid #-}
 valid :: I.Elem a b => Matrix a b -> Bool
 valid (Matrix rows cols vals) = rows >= 0 && cols >= 0 && VS.length vals == rows * cols
 
 -- | The maximum coefficient of the matrix
+{-# INLINE maxCoeff #-}
 maxCoeff :: (I.Elem a b, Ord a) => Matrix a b -> a
 maxCoeff = fold1' max
 
 -- | The minimum coefficient of the matrix
+{-# INLINE minCoeff #-}
 minCoeff :: (I.Elem a b, Ord a) => Matrix a b -> a
 minCoeff = fold1' min
 
 -- | Top @N@ rows of matrix
+{-# INLINE topRows #-}
 topRows :: I.Elem a b => Int -> Matrix a b -> Matrix a b
 topRows n m@(Matrix _ cols _) = block 0 0 n cols m
 
 -- | Bottom @N@ rows of matrix
+{-# INLINE bottomRows #-}
 bottomRows :: I.Elem a b => Int -> Matrix a b -> Matrix a b
 bottomRows n m@(Matrix rows cols _) = block (rows - n) 0 n cols m
 
 -- | Left @N@ columns of matrix
+{-# INLINE leftCols #-}
 leftCols :: I.Elem a b => Int -> Matrix a b -> Matrix a b
 leftCols n m@(Matrix rows _ _) = block 0 0 rows n m
 
 -- | Right @N@ columns of matrix
+{-# INLINE rightCols #-}
 rightCols :: I.Elem a b => Int -> Matrix a b -> Matrix a b
 rightCols n m@(Matrix rows cols _) = block 0 (cols - n) rows n m
 
@@ -271,11 +301,13 @@ fromList list = Matrix rows cols vals where
 
 -- | Convert matrix to a list of rows
 toList :: I.Elem a b => Matrix a b -> [[a]]
-toList (Matrix rows cols vals) = [[I.cast $ vals VS.! (col * rows + row) | col <- [0..pred cols]] | row <- [0..pred rows]]
+toList m@(Matrix rows cols vals)
+    | not (valid m) = error "matrix is not valid"
+    | otherwise = [[I.cast $ vals `VS.unsafeIndex` (col * rows + row) | col <- [0..pred cols]] | row <- [0..pred rows]]
 
 -- | [generate rows cols (λ row col -> val)]
 --
--- Create matrix using generator function @f row col val@
+-- Create matrix using generator function @λ row col -> val@
 --
 generate :: I.Elem a b => Int -> Int -> (Int -> Int -> a) -> Matrix a b
 generate rows cols f = Matrix rows cols $ VS.create $ do
@@ -295,7 +327,7 @@ prod = _prop I.prod
 
 -- | The mean of all coefficients of the matrix
 mean :: I.Elem a b => Matrix a b -> a
-mean = _prop I.prod
+mean = _prop I.mean
 
 -- | The trace of a matrix is the sum of the diagonal coefficients and can also be computed as sum (diagonal m)
 trace :: I.Elem a b => Matrix a b -> a
@@ -303,15 +335,15 @@ trace = _prop I.trace
 
 -- | Applied to a predicate and a matrix, all determines if all elements of the matrix satisfies the predicate
 all :: I.Elem a b => (a -> Bool) -> Matrix a b -> Bool
-all f = VS.all (f . I.cast) . vals
+all f = VS.all (f . I.cast) . _vals
 
 -- | Applied to a predicate and a matrix, any determines if any element of the matrix satisfies the predicate
 any :: I.Elem a b => (a -> Bool) -> Matrix a b -> Bool
-any f = VS.any (f . I.cast) . vals
+any f = VS.any (f . I.cast) . _vals
 
 -- | Returns the number of coefficients in a given matrix that evaluate to true
 count :: I.Elem a b => (a -> Bool) -> Matrix a b -> Int
-count f = VS.foldl' (\n x -> if f (I.cast x) then succ n else n) 0 . vals
+count f = VS.foldl' (\n x -> if f (I.cast x) then succ n else n) 0 . _vals
 
 {-| For vectors, the l2 norm, and for matrices the Frobenius norm.
     In both cases, it consists in the square root of the sum of the square of all the matrix entries.
@@ -399,13 +431,36 @@ Matrix 3x3
 imap :: I.Elem a b => (Int -> Int -> a -> a) -> Matrix a b -> Matrix a b
 imap f (Matrix rows cols vals) = Matrix rows cols (VS.imap (\n -> let (c, r) = divMod n rows in I.cast . f r c . I.cast) vals)
 
--- | Upper trinagle of the matrix
-upperTriangle :: I.Elem a b => Matrix a b -> Matrix a b
-upperTriangle = imap (\row col val -> if row <= col then val else 0)
+data TriangularMode
+    -- | View matrix as a lower triangular matrix.
+    = Lower
+    -- | View matrix as an upper triangular matrix.
+    | Upper
+    -- | View matrix as a lower triangular matrix with zeros on the diagonal.
+    | StrictlyLower
+    -- | View matrix as an upper triangular matrix with zeros on the diagonal.
+    | StrictlyUpper
+    -- | View matrix as a lower triangular matrix with ones on the diagonal.
+    | UnitLower 
+    -- | View matrix as an upper triangular matrix with ones on the diagonal.
+    | UnitUpper deriving (Eq, Enum, Show, Read)
 
--- | Lower trinagle of the matrix
+-- | Triangular view extracted from the current matrix
+triangularView :: I.Elem a b => TriangularMode -> Matrix a b -> Matrix a b
+triangularView Lower         = imap $ \row col val -> case compare row col of { LT -> 0; _ -> val } 
+triangularView Upper         = imap $ \row col val -> case compare row col of { GT -> 0; _ -> val } 
+triangularView StrictlyLower = imap $ \row col val -> case compare row col of { GT -> val; _ -> 0 } 
+triangularView StrictlyUpper = imap $ \row col val -> case compare row col of { LT -> val; _ -> 0 } 
+triangularView UnitLower     = imap $ \row col val -> case compare row col of { GT -> val; LT -> 0; EQ -> 1 } 
+triangularView UnitUpper     = imap $ \row col val -> case compare row col of { LT -> val; GT -> 0; EQ -> 1 } 
+
+-- | Lower trinagle of the matrix. Shortcut for @triangularView Lower@
 lowerTriangle :: I.Elem a b => Matrix a b -> Matrix a b
-lowerTriangle = imap (\row col val -> if row >= col then val else 0)
+lowerTriangle = triangularView Lower
+
+-- | Upper trinagle of the matrix. Shortcut for @triangularView Upper@ 
+upperTriangle :: I.Elem a b => Matrix a b -> Matrix a b
+upperTriangle = triangularView Upper
 
 -- | Filter elements in the matrix. Filtered elements will be replaced by 0
 filter :: I.Elem a b => (a -> Bool) -> Matrix a b -> Matrix a b
@@ -433,11 +488,11 @@ ifold' f a (Matrix rows _ vals) = VS.ifoldl' (\a n x -> let (c,r) = divMod n row
 
 -- | Reduce matrix using user provided function applied to each element.
 fold1 :: I.Elem a b => (a -> a -> a) -> Matrix a b -> a
-fold1 f = foldl1 f . P.map I.cast . VS.toList . vals
+fold1 f = foldl1 f . P.map I.cast . VS.toList . _vals
 
 -- | Reduce matrix using user provided function applied to each element. This is strict version of 'fold'
 fold1' :: I.Elem a b => (a -> a -> a) -> Matrix a b -> a
-fold1' f = L.foldl1' f . P.map I.cast . VS.toList . vals
+fold1' f = L.foldl1' f . P.map I.cast . VS.toList . _vals
 
 -- | Diagonal of the matrix
 diagonal :: I.Elem a b => Matrix a b -> Matrix a b
@@ -527,11 +582,13 @@ decode st = Matrix rows cols vals where
         return (rows, cols, VS.unsafeFromForeignPtr0 (I.plusForeignPtr fp fo) (rows * cols))
 
 
+{-# INLINE _prop #-}
 _prop :: I.Elem a b => (Ptr b -> Ptr b -> CInt -> CInt -> IO CString) -> Matrix a b -> a
 _prop f m = I.cast $ I.performIO $ alloca $ \p -> do
     I.call $ unsafeWith m (f p)
     peek p
 
+{-# INLINE _binop #-}
 _binop :: I.Elem a b => ((Int, Int) -> (Int, Int) -> (Int, Int)) -> (Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString) -> Matrix a b -> Matrix a b -> Matrix a b
 _binop f g m1 m2 = I.performIO $ do
     m0 <- uncurry M.new $ f (dims m1) (dims m2)
@@ -544,6 +601,7 @@ _binop f g m1 m2 = I.performIO $ do
                     vals2 rows2 cols2
     unsafeFreeze m0
 
+{-# INLINE _unop #-}
 _unop :: I.Elem a b => ((Int,Int) -> (Int,Int)) -> (Ptr b -> CInt -> CInt -> Ptr b -> CInt -> CInt -> IO CString) -> Matrix a b -> Matrix a b
 _unop f g m1 = I.performIO $ do
     m0 <- uncurry M.new $ f (dims m1)
@@ -553,3 +611,7 @@ _unop f g m1 = I.performIO $ do
                 vals0 rows0 cols0
                 vals1 rows1 cols1
     unsafeFreeze m0
+
+{-# INLINE _vals #-}
+_vals :: I.Elem a b => Matrix a b -> VS.Vector b
+_vals (Matrix _ _ vals) = vals
