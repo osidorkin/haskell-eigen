@@ -5,12 +5,16 @@
 
 module Data.Eigen.SparseMatrix (
     -- * SparseMatrix type
-    -- | SparseMatrix aliases follows Eigen naming convention
     SparseMatrix(..),
     SparseMatrixXf,
     SparseMatrixXd,
     SparseMatrixXcf,
     SparseMatrixXcd,
+    -- * Matrix internal data
+    values,
+    innerIndices,
+    outerStarts,
+    innerNNZs,
     -- * Accessing matrix data
     cols,
     rows,
@@ -28,9 +32,6 @@ module Data.Eigen.SparseMatrix (
     squaredNorm,
     blueNorm,
     block,
-    compress,
-    uncompress,
-    compressed,
     nonZeros,
     innerSize,
     outerSize,
@@ -43,9 +44,18 @@ module Data.Eigen.SparseMatrix (
     scale,
     transpose,
     adjoint,
+    -- * Matrix representation
+    compress,
+    uncompress,
+    compressed,
     -- * Matrix serialization
     encode,
     decode,
+    -- * Mutable matricies
+    thaw,
+    freeze,
+    unsafeThaw,
+    unsafeFreeze,
 ) where
 
 import qualified Prelude as P
@@ -65,6 +75,7 @@ import Control.Applicative
 #endif
 import qualified Data.Eigen.Matrix as M
 import qualified Data.Eigen.Matrix.Mutable as MM
+import qualified Data.Eigen.SparseMatrix.Mutable as SMM
 import qualified Foreign.Concurrent as FC
 import qualified Data.Eigen.Internal as I
 import qualified Data.Vector.Storable as VS
@@ -75,19 +86,52 @@ import qualified Data.ByteString.Internal as BSI
 
 {-| A versatible sparse matrix representation.
 
-This class implements a more versatile variants of the common compressed row/column storage format.
-Each colmun's (resp. row) non zeros are stored as a pair of value with associated row (resp. colmiun) index.
-All the non zeros are stored in a single large buffer.
-Unlike the compressed format, there might be extra space inbetween the nonzeros of two successive colmuns
-(resp. rows) such that insertion of new non-zero can be done with limited memory reallocation and copies.
+SparseMatrix is the main sparse matrix representation of Eigen's sparse module.
+It offers high performance and low memory usage.
+It implements a more versatile variant of the widely-used Compressed Column (or Row) Storage scheme.
 
-The results of Eigen's operations always produces compressed sparse matrices. On the other hand, the insertion of a new element into a SparseMatrix converts this later to the uncompressed mode.
+It consists of four compact arrays:
 
-A call to the function 'compress' turns the matrix into the standard compressed format compatible with many library.
+* `values`: stores the coefficient values of the non-zeros.
+* `innerIndices`: stores the row (resp. column) indices of the non-zeros.
+* `outerStarts`: stores for each column (resp. row) the index of the first non-zero in the previous two arrays.
+* `innerNNZs`: stores the number of non-zeros of each column (resp. row). The word inner refers to an inner vector that is a column for a column-major matrix, or a row for a row-major matrix. The word outer refers to the other direction.
 
-Implementation deails of SparseMatrix are intentionally hidden behind ForeignPtr bacause Eigen doesn't provide mapping over plain data for sparse matricies.
+This storage scheme is better explained on an example. The following matrix
 
-For more infomration please see Eigen documentation page: <http://eigen.tuxfamily.org/dox/classEigen_1_1SparseMatrix.html>
+@
+0   3   0   0   0
+22  0   0   0   17
+7   5   0   1   0
+0   0   0   0   0
+0   0   14  0   8
+@
+
+and one of its possible sparse, __column major__ representation:
+
+@
+values:         22  7   _   3   5   14  _   _   1   _   17  8
+innerIndices:   1   2   _   0   2   4   _   _   2   _   1   4
+outerStarts:    0   3   5   8   10  12
+innerNNZs:      2   2   1   1   2
+@
+
+Currently the elements of a given inner vector are guaranteed to be always sorted by increasing inner indices.
+The "\_" indicates available free space to quickly insert new elements. Assuming no reallocation is needed,
+the insertion of a random element is therefore in @O(nnz_j)@ where @nnz_j@ is the number of nonzeros of the
+respective inner vector. On the other hand, inserting elements with increasing inner indices in a given inner
+vector is much more efficient since this only requires to increase the respective `innerNNZs` entry that is a @O(1)@ operation.
+
+The case where no empty space is available is a special case, and is refered as the compressed mode.
+It corresponds to the widely used Compressed Column (or Row) Storage schemes (CCS or CRS).
+Any `SparseMatrix` can be turned to this form by calling the `compress` function.
+In this case, one can remark that the `innerNNZs` array is redundant with `outerStarts` because we the equality:
+@InnerNNZs[j] = OuterStarts[j+1]-OuterStarts[j]@. Therefore, in practice a call to `compress` frees this buffer.
+
+The results of Eigen's operations always produces compressed sparse matrices.
+On the other hand, the insertion of a new element into a `SparseMatrix` converts this later to the uncompressed mode.
+
+For more infomration please see Eigen <http://eigen.tuxfamily.org/dox/classEigen_1_1SparseMatrix.html documentation page>.
 -}
 
 data SparseMatrix a b where
@@ -108,7 +152,7 @@ instance (I.Elem a b, Show a) => Show (SparseMatrix a b) where
         "SparseMatrix ", show (rows m), "x", show (cols m),
         "\n", L.intercalate "\n" $ P.map (L.intercalate "\t" . P.map show) $ toDenseList m, "\n"]
 
--- | Shortcuts for basic matrix math
+-- | Basic sparse matrix math exposed through Num instance: @(*)@, @(+)@, @(-)@, `fromInteger`, `signum`, `abs`, `negate`
 instance I.Elem a b => Num (SparseMatrix a b) where
     (*) = mul
     (+) = add
@@ -124,6 +168,26 @@ map f m = fromList (rows m) (cols m) . P.map (\(r,c,v) -> (r,c,f v)) . toList $ 
 
 mk :: I.Elem a b => Ptr (I.CSparseMatrix a b) -> IO (SparseMatrix a b)
 mk p = SparseMatrix <$> FC.newForeignPtr p (I.call $ I.sparse_free p)
+
+-- | Stores the coefficient values of the non-zeros.
+values :: I.Elem a b => SparseMatrix a b -> VS.Vector b
+values = _getvec I.sparse_values
+
+-- | Stores the row (resp. column) indices of the non-zeros.
+innerIndices :: I.Elem a b => SparseMatrix a b -> VS.Vector CInt
+innerIndices = _getvec I.sparse_innerIndices
+
+-- | Stores for each column (resp. row) the index of the first non-zero in the previous two arrays.
+outerStarts :: I.Elem a b => SparseMatrix a b -> VS.Vector CInt
+outerStarts = _getvec I.sparse_outerStarts
+
+-- | Stores the number of non-zeros of each column (resp. row).
+-- The word inner refers to an inner vector that is a column for a column-major matrix, or a row for a row-major matrix.
+-- The word outer refers to the other direction
+innerNNZs :: I.Elem a b => SparseMatrix a b -> Maybe (VS.Vector CInt)
+innerNNZs m
+    | compressed m = Nothing
+    | otherwise = Just $ _getvec I.sparse_innerNNZs m
 
 -- | Number of rows for the sparse matrix
 rows :: I.Elem a b => SparseMatrix a b -> Int
@@ -166,15 +230,15 @@ block row col rows cols = _unop (\p pq -> I.sparse_block p (I.cast row) (I.cast 
 nonZeros :: I.Elem a b => SparseMatrix a b -> Int
 nonZeros = _unop I.sparse_nonZeros (return . I.cast)
 
--- | Turns the matrix into the compressed format
+-- | The matrix in the compressed format
 compress :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b
 compress = _unop I.sparse_makeCompressed mk
 
--- | not exposed currently
+-- | The matrix in the uncompressed mode
 uncompress :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b
 uncompress = _unop I.sparse_uncompress mk
 
--- | not exposed currently
+-- | Is this in compressed form?
 compressed :: I.Elem a b => SparseMatrix a b -> Bool
 compressed = _unop I.sparse_isCompressed (return . (/=0))
 
@@ -315,6 +379,22 @@ decode st = I.performIO $ do
         I.call $ I.sparse_fromList rows cols p size pq
         peek pq >>= mk
 
+-- | Yield an immutable copy of the mutable matrix
+freeze :: I.Elem a b => SMM.IOSparseMatrix a b -> IO (SparseMatrix a b)
+freeze (SMM.IOSparseMatrix fp) = SparseMatrix <$> _clone fp
+
+-- | Yield a mutable copy of the immutable matrix
+thaw :: I.Elem a b => SparseMatrix a b -> IO (SMM.IOSparseMatrix a b)
+thaw (SparseMatrix fp) = SMM.IOSparseMatrix <$> _clone fp
+
+-- | Unsafe convert a mutable matrix to an immutable one without copying. The mutable matrix may not be used after this operation.
+unsafeFreeze :: I.Elem a b => SMM.IOSparseMatrix a b -> IO (SparseMatrix a b)
+unsafeFreeze (SMM.IOSparseMatrix fp) = return $! SparseMatrix fp
+
+-- | Unsafely convert an immutable matrix to a mutable one without copying. The immutable matrix may not be used after this operation.
+unsafeThaw :: I.Elem a b => SparseMatrix a b -> IO (SMM.IOSparseMatrix a b)
+unsafeThaw (SparseMatrix fp) = return $! SMM.IOSparseMatrix fp
+
 _unop :: Storable c => (I.CSparseMatrixPtr a b -> Ptr c -> IO CString) -> (c -> IO d) -> SparseMatrix a b -> d
 _unop f g (SparseMatrix fp) = I.performIO $
     withForeignPtr fp $ \p ->
@@ -329,3 +409,20 @@ _binop f g (SparseMatrix fp1) (SparseMatrix fp2) = I.performIO $
             alloca $ \pq -> do
                 I.call (f p1 p2 pq)
                 peek pq >>= g
+
+_getvec :: (I.Elem a b, Storable c) => (Ptr (I.CSparseMatrix a b) -> Ptr CInt -> Ptr (Ptr c) -> IO CString) -> SparseMatrix a b -> VS.Vector c
+_getvec f (SparseMatrix fm) = I.performIO $
+    withForeignPtr fm $ \m ->
+    alloca $ \ps ->
+    alloca $ \pq -> do
+        I.call $ f m ps pq
+        s <- fromIntegral <$> peek ps
+        q <- peek pq
+        fr <- FC.newForeignPtr q $ touchForeignPtr fm
+        return $! VS.unsafeFromForeignPtr0 fr s
+
+_clone :: I.Elem a b => ForeignPtr (I.CSparseMatrix a b) -> IO (ForeignPtr (I.CSparseMatrix a b))
+_clone fp = withForeignPtr fp $ \p -> alloca $ \pq -> do
+    I.call $ I.sparse_clone p pq
+    q <- peek pq
+    FC.newForeignPtr q $ I.call $ I.sparse_free q

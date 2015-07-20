@@ -154,6 +154,8 @@ magicCode x = code x `xor` 0x45696730
 
 #let api2 name, args = "foreign import ccall \"eigen_%s\" c_%s :: CInt -> %s\n%s :: forall a b . Code b => %s\n%s = c_%s (code (undefined :: b))", #name, #name, args, #name, args, #name, #name
 
+#api2 sparse_new,           "CInt -> CInt -> Ptr (CSparseMatrixPtr a b) -> IO CString"
+#api2 sparse_clone,         "CSparseMatrixPtr a b -> Ptr (CSparseMatrixPtr a b) -> IO CString"
 #api2 sparse_fromList,      "CInt -> CInt -> Ptr (CTriplet b) -> CInt -> Ptr (CSparseMatrixPtr a b) -> IO CString"
 #api2 sparse_toList,        "CSparseMatrixPtr a b -> Ptr (CTriplet b) -> CInt -> IO CString"
 #api2 sparse_free,          "CSparseMatrixPtr a b -> IO CString"
@@ -165,11 +167,11 @@ magicCode x = code x `xor` 0x45696730
 #api2 sparse_pruned,        "CSparseMatrixPtr a b -> Ptr (CSparseMatrixPtr a b) -> IO CString"
 #api2 sparse_prunedRef,     "CSparseMatrixPtr a b -> Ptr b -> Ptr (CSparseMatrixPtr a b) -> IO CString"
 #api2 sparse_scale,         "CSparseMatrixPtr a b -> Ptr b -> Ptr (CSparseMatrixPtr a b) -> IO CString"
-#api2 sparse_diagonal,      "CSparseMatrixPtr a b -> Ptr (CSparseMatrixPtr a b) -> IO CString"
 #api2 sparse_nonZeros,      "CSparseMatrixPtr a b -> Ptr CInt -> IO CString"
 #api2 sparse_innerSize,     "CSparseMatrixPtr a b -> Ptr CInt -> IO CString"
 #api2 sparse_outerSize,     "CSparseMatrixPtr a b -> Ptr CInt -> IO CString"
 #api2 sparse_coeff,         "CSparseMatrixPtr a b -> CInt -> CInt -> Ptr b -> IO CString"
+#api2 sparse_coeffRef,      "CSparseMatrixPtr a b -> CInt -> CInt -> Ptr (Ptr b) -> IO CString"
 #api2 sparse_cols,          "CSparseMatrixPtr a b -> Ptr CInt -> IO CString"
 #api2 sparse_rows,          "CSparseMatrixPtr a b -> Ptr CInt -> IO CString"
 #api2 sparse_norm,          "CSparseMatrixPtr a b -> Ptr b -> IO CString"
@@ -181,6 +183,18 @@ magicCode x = code x `xor` 0x45696730
 #api2 sparse_block,         "CSparseMatrixPtr a b -> CInt -> CInt -> CInt -> CInt -> Ptr (CSparseMatrixPtr a b) -> IO CString"
 #api2 sparse_fromMatrix,    "Ptr b -> CInt -> CInt -> Ptr (CSparseMatrixPtr a b) -> IO CString"
 #api2 sparse_toMatrix,      "CSparseMatrixPtr a b -> Ptr b -> CInt -> CInt -> IO CString"
+#api2 sparse_values,        "CSparseMatrixPtr a b -> Ptr CInt -> Ptr (Ptr b) -> IO CString"
+#api2 sparse_outerStarts,   "CSparseMatrixPtr a b -> Ptr CInt -> Ptr (Ptr CInt) -> IO CString"
+#api2 sparse_innerIndices,  "CSparseMatrixPtr a b -> Ptr CInt -> Ptr (Ptr CInt) -> IO CString"
+#api2 sparse_innerNNZs,     "CSparseMatrixPtr a b -> Ptr CInt -> Ptr (Ptr CInt) -> IO CString"
+#api2 sparse_setZero,       "CSparseMatrixPtr a b -> IO CString"
+#api2 sparse_setIdentity,   "CSparseMatrixPtr a b -> IO CString"
+#api2 sparse_reserve,       "CSparseMatrixPtr a b -> CInt -> IO CString"
+#api2 sparse_resize,        "CSparseMatrixPtr a b -> CInt -> CInt -> IO CString"
+#api2 sparse_conservativeResize,    "CSparseMatrixPtr a b -> CInt -> CInt -> IO CString"
+#api2 sparse_compressInplace,       "CSparseMatrixPtr a b -> IO CString"
+#api2 sparse_uncompressInplace,     "CSparseMatrixPtr a b -> IO CString"
+
 
 #let api3 name, args = "foreign import ccall \"eigen_%s\" c_%s :: CInt -> CInt -> %s\n%s :: forall s a b . (Code s, Code b) => s -> %s\n%s s = c_%s (code (undefined :: b)) (code s)", #name, #name, args, #name, args, #name, #name
 
@@ -205,7 +219,6 @@ magicCode x = code x `xor` 0x45696730
 #api3 sparse_la_matrixL,            "CSolverPtr a b -> Ptr (CSparseMatrixPtr a b) -> IO CString"
 #api3 sparse_la_matrixU,            "CSolverPtr a b -> Ptr (CSparseMatrixPtr a b) -> IO CString"
 #api3 sparse_la_setSymmetric,       "CSolverPtr a b -> CInt -> IO CString"
-#api3 sparse_la_simplicialFactorize,"CSolverPtr a b -> CSparseMatrixPtr a b -> IO CString"
 #api3 sparse_la_determinant,        "CSolverPtr a b -> Ptr b -> IO CString"
 #api3 sparse_la_logAbsDeterminant,  "CSolverPtr a b -> Ptr b -> IO CString"
 #api3 sparse_la_absDeterminant,     "CSolverPtr a b -> Ptr b -> IO CString"

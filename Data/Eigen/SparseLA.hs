@@ -137,7 +137,6 @@ module Data.Eigen.SparseLA (
     rank,
     setPivotThreshold,
     -- * SparseLU Solver
-    simplicialFactorize,
     setSymmetric,
     matrixL,
     matrixU,
@@ -169,14 +168,14 @@ import qualified Data.Eigen.SparseMatrix as SM
     elements in @LLT(A*P)@ will be much smaller than that in @LLT(A)@.
 -}
 data OrderingMethod
-    -- | The column approximate minimum degree ordering The matrix should be in column-major and compressed format 
+    -- | The column approximate minimum degree ordering The matrix should be in column-major and compressed format
     = COLAMDOrdering
     -- | The natural ordering (identity)
     | NaturalOrdering deriving (Show, Read)
 
 data Preconditioner
     {- | A preconditioner based on the digonal entries
-        
+
         It allows to approximately solve for A.x = b problems assuming A is a diagonal matrix.
         In other words, this preconditioner neglects all off diagonal entries and, in Eigen's language, solves for:
         @
@@ -184,7 +183,7 @@ data Preconditioner
         @
         This preconditioner is suitable for both selfadjoint and general problems.
         The diagonal entries are pre-inverted and stored into a dense vector.
-        
+
         A variant that has yet to be implemented would attempt to preserve the norm of each column.
     -}
     = DiagonalPreconditioner
@@ -193,7 +192,7 @@ data Preconditioner
 
 
 class I.Code s => Solver s where
--- | For direct methods, the solution are computed at the machine precision.
+-- | For direct methods, the solution is computed at the machine precision.
 class Solver s => DirectSolver s where
 -- | Sometimes, the solution need not be too accurate.
 -- In this case, the iterative methods are more suitable and the desired accuracy can be set before the solve step using `setTolerance`.
@@ -237,11 +236,11 @@ instance I.Code BiCGSTAB where
     Moreover, when the size of a supernode is very small, the BLAS calls are avoided to enable a better optimization from the compiler.
     For best performance, you should compile it with NDEBUG flag to avoid the numerous bounds checking on vectors.
 
-    An important parameter of this class is the ordering method. It is used to reorder the columns 
-    (and eventually the rows) of the matrix to reduce the number of new elements that are created during 
-    numerical factorization. The cheapest method available is COLAMD. 
-    See  \link OrderingMethods_Module the OrderingMethods module \endlink for the list of 
-    built-in and external ordering methods. 
+    An important parameter of this class is the ordering method. It is used to reorder the columns
+    (and eventually the rows) of the matrix to reduce the number of new elements that are created during
+    numerical factorization. The cheapest method available is COLAMD.
+    See <http://eigen.tuxfamily.org/dox/group__OrderingMethods__Module.html OrderingMethods module> for the list of
+    built-in and external ordering methods.
 -}
 data SparseLU = SparseLU OrderingMethod deriving (Show, Read)
 instance Solver SparseLU
@@ -313,7 +312,7 @@ compute (SM.SparseMatrix fa) = ask >>= \(i,fs) -> liftIO $
     withForeignPtr fa $ \a ->
         I.call $ I.sparse_la_compute i s a
 
--- | An expression of the solution x of @A x = b@ using the current decomposition of @A@.
+-- | An expression of the solution @x@ of @Ax=b@ using the current decomposition of @A@.
 solve :: (Solver s, MonadIO m, I.Elem a b) => SM.SparseMatrix a b -> SolverT s a b m (SM.SparseMatrix a b)
 solve (SM.SparseMatrix fb) = ask >>= \(i,fs) -> liftIO $
     withForeignPtr fs $ \s ->
@@ -324,7 +323,7 @@ solve (SM.SparseMatrix fb) = ask >>= \(i,fs) -> liftIO $
         SM.SparseMatrix <$> FC.newForeignPtr x (I.call $ I.sparse_free x)
 
 {-
--- | The solution @x@ of @A x = b@ using the current decomposition of @A@ and @x0@ as an initial solution.
+-- | The solution @x@ of @Ax=b@ using the current decomposition of @A@ and @x0@ as an initial solution.
 solveWithGuess :: (MonadIO m, I.Elem a b) => SM.SparseMatrix a b -> SM.SparseMatrix a b -> SolverT s a b m (SM.SparseMatrix a b)
 solveWithGuess (SM.SparseMatrix fb) (SM.SparseMatrix fx0) = ask >>= \(i,fs) -> liftIO $
     withForeignPtr fs $ \s ->
@@ -336,7 +335,11 @@ solveWithGuess (SM.SparseMatrix fb) (SM.SparseMatrix fx0) = ask >>= \(i,fs) -> l
         SM.SparseMatrix <$> FC.newForeignPtr x (I.call $ I.sparse_free x)
 -}
 
--- | Success if the iterations converged, and NoConvergence otherwise.
+-- |
+-- * `Success` if the iterations converged or computation was succesful
+-- * `NumericalIssue` if the factorization reports a numerical problem
+-- * `NoConvergence` if the iterations are not converged
+-- * `InvalidInput` if the input matrix is invalid
 info :: (Solver s, MonadIO m, I.Elem a b) => SolverT s a b m ComputationInfo
 info = _get_prop I.sparse_la_info >>= \x -> return (toEnum x)
 
@@ -346,7 +349,7 @@ tolerance = _get_prop I.sparse_la_tolerance
 
 -- | Sets the tolerance threshold used by the stopping criteria.
 --
---   This value is used as an upper bound to the relative residual error: @|Ax-b|/|b|@. The default value is the machine precision given by epsilon
+--   This value is used as an upper bound to the relative residual error: @|Ax-b|/|b|@. The default value is the machine precision given by @epsilon@
 setTolerance :: (IterativeSolver s, MonadIO m, I.Elem a b) => Double -> SolverT s a b m ()
 setTolerance = _set_prop I.sparse_la_setTolerance
 
@@ -375,7 +378,7 @@ matrixQ :: (MonadIO m, I.Elem a b) => SolverT SparseQR a b m (SM.SparseMatrix a 
 matrixQ = _get_matrix I.sparse_la_matrixQ
 
 -- | Sets the threshold that is used to determine linearly dependent columns during the factorization.
--- 
+--
 -- In practice, if during the factorization the norm of the column that has to be eliminated is below
 -- this threshold, then the entire column is treated as zero, and it is moved at the end.
 setPivotThreshold :: (MonadIO m, I.Elem a b) => Double -> SolverT SparseQR a b m ()
@@ -385,21 +388,15 @@ setPivotThreshold = _set_prop I.sparse_la_setPivotThreshold
 rank :: (MonadIO m, I.Elem a b) => SolverT SparseQR a b m Int
 rank = _get_prop I.sparse_la_rank
 
-simplicialFactorize :: (MonadIO m, I.Elem a b) => (SM.SparseMatrix a b) -> SolverT SparseLU a b m ()
-simplicialFactorize (SM.SparseMatrix fa) = ask >>= \(i,fs) -> liftIO $
-    withForeignPtr fs $ \s ->
-    withForeignPtr fa $ \a ->
-        I.call $ I.sparse_la_simplicialFactorize i s a
-
 -- | Indicate that the pattern of the input matrix is symmetric
 setSymmetric :: (MonadIO m, I.Elem a b) => Bool -> SolverT SparseLU a b m ()
 setSymmetric = _set_prop I.sparse_la_setSymmetric . fromEnum
 
--- | Returns the matrix L
+-- | Returns the matrix @L@
 matrixL :: (MonadIO m, I.Elem a b) => SolverT SparseLU a b m (SM.SparseMatrix a b)
 matrixL = _get_matrix I.sparse_la_matrixL
 
--- | Returns the matrix U
+-- | Returns the matrix @U@
 matrixU :: (MonadIO m, I.Elem a b) => SolverT SparseLU a b m (SM.SparseMatrix a b)
 matrixU = _get_matrix I.sparse_la_matrixU
 
@@ -408,13 +405,13 @@ determinant :: (MonadIO m, I.Elem a b) => SolverT SparseLU a b m a
 determinant = _get_prop I.sparse_la_determinant
 
 -- | The natural log of the absolute value of the determinant of the matrix of which this is the QR decomposition
--- 
+--
 -- This method is useful to work around the risk of overflow/underflow that's inherent to the determinant computation.
 logAbsDeterminant :: (MonadIO m, I.Elem a b) => SolverT SparseLU a b m a
 logAbsDeterminant = _get_prop I.sparse_la_logAbsDeterminant
 
 -- | The absolute value of the determinant of the matrix of which *this is the QR decomposition.
--- 
+--
 -- A determinant can be very big or small, so for matrices of large enough dimension, there is a risk of overflow/underflow.
 -- One way to work around that is to use `logAbsDeterminant` instead.
 absDeterminant :: (MonadIO m, I.Elem a b) => SolverT SparseLU a b m a

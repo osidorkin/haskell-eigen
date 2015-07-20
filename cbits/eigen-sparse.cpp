@@ -3,6 +3,22 @@
 #include <Eigen/LeastSquares>
 
 template <class T>
+RET sparse_new(int rows, int cols, void** pr) {
+    typedef SparseMatrix<T> M;
+    *(M**)pr = new M(rows, cols);
+    return 0;
+}
+API(sparse_new, (int code, int rows, int cols, void** pr), (rows,cols,pr));
+
+template <class T>
+RET sparse_clone(void* p, void** q) {
+    typedef SparseMatrix<T> M;
+    *(M**)q = new M(*(M*)p);
+    return 0;
+}
+API(sparse_clone, (int code, void* p, void** q), (p,q));
+
+template <class T>
 RET sparse_fromList(int rows, int cols, void* data, int size, void** pr) {
     typedef SparseMatrix<T> M;
     typedef Triplet<T> E;
@@ -98,6 +114,13 @@ RET sparse_coeff(void* p, int row, int col, void* pr) {
 }
 API(sparse_coeff, (int code, void* p, int row, int col, void* pr), (p, row, col, pr));
 
+template <class T>
+RET sparse_coeffRef(void* p, int row, int col, void** pr) {
+    *(T**)pr = &((SparseMatrix<T>*)p)->coeffRef(row, col);
+    return 0;
+}
+API(sparse_coeffRef, (int code, void* p, int row, int col, void** pr), (p, row, col, pr));
+
 #define SPARSE_PROP(name,type)\
 template <class T>\
 RET sparse_##name(void* p, void* pr) {\
@@ -153,6 +176,7 @@ RET sparse_fromMatrix(void* p, int rows, int cols, void** pq) {
                 dst->insert(row, col) = val;
         }
     }
+    dst->makeCompressed();
     *(M**)pq = dst.release();
     return 0;
 }
@@ -165,3 +189,73 @@ RET sparse_toMatrix(void* p, void* q, int rows, int cols) {
     return 0;
 }
 API(sparse_toMatrix, (int code, void* p, void* q, int rows, int cols), (p,q,rows,cols));
+
+template <class T>
+RET sparse_values(void* p, int* s, void** q) {
+    SparseMatrix<T>* m = (SparseMatrix<T>*)p;
+    *s = m->outerIndexPtr()[m->outerSize()];
+    *q = m->valuePtr();
+    return 0;
+}
+API(sparse_values, (int code, void*p, int* s, void** q), (p,s,q));
+
+template <class T>
+RET sparse_outerStarts(void* p, int* s, void** q) {
+    SparseMatrix<T>* m = (SparseMatrix<T>*)p;
+    *s = m->outerSize() + 1;
+    *q = m->outerIndexPtr();
+    return 0;
+}
+API(sparse_outerStarts, (int code, void*p, int* s, void** q), (p,s,q));
+
+template <class T>
+RET sparse_innerIndices(void* p, int* s, void** q) {
+    SparseMatrix<T>* m = (SparseMatrix<T>*)p;
+    *s = m->outerIndexPtr()[m->outerSize()];
+    *q = m->innerIndexPtr();
+    return 0;
+}
+API(sparse_innerIndices, (int code, void*p, int* s, void** q), (p,s,q));
+
+template <class T>
+RET sparse_innerNNZs(void* p, int* s, void** q) {
+    SparseMatrix<T>* m = (SparseMatrix<T>*)p;
+    *s = m->outerSize();
+    *q = m->innerNonZeroPtr();
+    return 0;
+}
+API(sparse_innerNNZs, (int code, void*p, int* s, void** q), (p,s,q));
+
+#define SPARSE_INPLACE(name,op)\
+template <class T>\
+RET sparse_##name(void* p) {\
+    ((SparseMatrix<T>*)p)->op();\
+    return 0;\
+}\
+API(sparse_##name, (int code, void* p), (p));
+
+SPARSE_INPLACE(setIdentity, setIdentity);
+SPARSE_INPLACE(setZero, setZero);
+SPARSE_INPLACE(compressInplace, makeCompressed);
+SPARSE_INPLACE(uncompressInplace, uncompress);
+
+template <class T>
+RET sparse_reserve(void* p, int s) {
+    ((SparseMatrix<T>*)p)->reserve(s);
+    return 0;
+}
+API(sparse_reserve, (int code, void* p, int s), (p,s));
+
+template <class T>
+RET sparse_resize(void* p, int r, int c) {
+    ((SparseMatrix<T>*)p)->resize(r,c);
+    return 0;
+}
+API(sparse_resize, (int code, void* p, int r, int c), (p,r,c));
+
+template <class T>
+RET sparse_conservativeResize(void* p, int r, int c) {
+    ((SparseMatrix<T>*)p)->conservativeResize(r,c);
+    return 0;
+}
+API(sparse_conservativeResize, (int code, void* p, int r, int c), (p,r,c));

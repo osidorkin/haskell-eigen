@@ -148,7 +148,7 @@ instance (I.Elem a b, Show a) => Show (Matrix a b) where
         "\n", L.intercalate "\n" $ P.map (L.intercalate "\t" . P.map show) $ toList m, "\n"]
 
 
--- | Basic matrix math exposed through Num instance: `(*)`, `(+)`, `(-)`, `fromInteger`, `signum`, `abs`, `negate`
+-- | Basic matrix math exposed through Num instance: @(*)@, @(+)@, @(-)@, `fromInteger`, `signum`, `abs`, `negate`
 instance I.Elem a b => Num (Matrix a b) where
     (*) = mul
     (+) = add
@@ -441,24 +441,24 @@ data TriangularMode
     -- | View matrix as an upper triangular matrix with zeros on the diagonal.
     | StrictlyUpper
     -- | View matrix as a lower triangular matrix with ones on the diagonal.
-    | UnitLower 
+    | UnitLower
     -- | View matrix as an upper triangular matrix with ones on the diagonal.
     | UnitUpper deriving (Eq, Enum, Show, Read)
 
 -- | Triangular view extracted from the current matrix
 triangularView :: I.Elem a b => TriangularMode -> Matrix a b -> Matrix a b
-triangularView Lower         = imap $ \row col val -> case compare row col of { LT -> 0; _ -> val } 
-triangularView Upper         = imap $ \row col val -> case compare row col of { GT -> 0; _ -> val } 
-triangularView StrictlyLower = imap $ \row col val -> case compare row col of { GT -> val; _ -> 0 } 
-triangularView StrictlyUpper = imap $ \row col val -> case compare row col of { LT -> val; _ -> 0 } 
-triangularView UnitLower     = imap $ \row col val -> case compare row col of { GT -> val; LT -> 0; EQ -> 1 } 
-triangularView UnitUpper     = imap $ \row col val -> case compare row col of { LT -> val; GT -> 0; EQ -> 1 } 
+triangularView Lower         = imap $ \row col val -> case compare row col of { LT -> 0; _ -> val }
+triangularView Upper         = imap $ \row col val -> case compare row col of { GT -> 0; _ -> val }
+triangularView StrictlyLower = imap $ \row col val -> case compare row col of { GT -> val; _ -> 0 }
+triangularView StrictlyUpper = imap $ \row col val -> case compare row col of { LT -> val; _ -> 0 }
+triangularView UnitLower     = imap $ \row col val -> case compare row col of { GT -> val; LT -> 0; EQ -> 1 }
+triangularView UnitUpper     = imap $ \row col val -> case compare row col of { LT -> val; GT -> 0; EQ -> 1 }
 
 -- | Lower trinagle of the matrix. Shortcut for @triangularView Lower@
 lowerTriangle :: I.Elem a b => Matrix a b -> Matrix a b
 lowerTriangle = triangularView Lower
 
--- | Upper trinagle of the matrix. Shortcut for @triangularView Upper@ 
+-- | Upper trinagle of the matrix. Shortcut for @triangularView Upper@
 upperTriangle :: I.Elem a b => Matrix a b -> Matrix a b
 upperTriangle = triangularView Upper
 

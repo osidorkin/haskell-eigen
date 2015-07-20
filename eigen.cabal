@@ -1,5 +1,5 @@
 name:           eigen
-version:        2.1.3
+version:        2.1.4
 homepage:       https://github.com/osidorkin/haskell-eigen
 synopsis:       Eigen C++ library (linear algebra: matrices, sparse matrices, vectors, numerical solvers).
 description:    This module provides Haskell binding for <http://eigen.tuxfamily.org/ Eigen C++ library>.
@@ -7,25 +7,33 @@ description:    This module provides Haskell binding for <http://eigen.tuxfamily
                 Eigen is versatile.
                 .
                 * It supports all matrix sizes, from small fixed-size matrices to arbitrarily large dense matrices, and even sparse matrices.
+                .
                 * It supports all standard numeric types, including std::complex, integers, and is easily extensible to custom numeric types.
+                .
                 * It supports various <http://eigen.tuxfamily.org/dox/group__TopicLinearAlgebraDecompositions.html matrix decompositions> and <http://eigen.tuxfamily.org/dox/group__TutorialGeometry.html geometry features>.
+                .
                 * Its ecosystem of <http://eigen.tuxfamily.org/dox/unsupported/index.html unsupported modules> provides many specialized features such as non-linear optimization, matrix functions, a polynomial solver, FFT, and much more.
                 .
                 Eigen is fast.
                 .
                 * Expression templates allow to intelligently remove temporaries and enable <http://eigen.tuxfamily.org/dox/TopicLazyEvaluation.html lazy evaluation>, when that is appropriate.
-                * <http://eigen.tuxfamily.org/index.php?title=FAQ#Vectorization Explicit vectorization> is performed for SSE 2/3/4, ARM NEON, and AltiVec instruction sets, with graceful fallback to non-vectorized code.
+                .
+                * <http://eigen.tuxfamily.org/index.php?title=FAQ#Vectorization Explicit vectorization> is performed for SSE 2\/3\/4, ARM NEON, and AltiVec instruction sets, with graceful fallback to non-vectorized code.
+                .
                 * Fixed-size matrices are fully optimized: dynamic memory allocation is avoided, and the loops are unrolled when that makes sense.
+                .
                 * For large matrices, special attention is paid to cache-friendliness.
                 .
                 Eigen is reliable.
                 .
                 * Algorithms are carefully selected for reliability. Reliability trade-offs are <http://eigen.tuxfamily.org/dox/group__TopicLinearAlgebraDecompositions.html clearly documented> and <http://eigen.tuxfamily.org/dox/classEigen_1_1JacobiSVD.html extremely> <http://eigen.tuxfamily.org/dox/classEigen_1_1FullPivHouseholderQR.html safe> <http://eigen.tuxfamily.org/dox/classEigen_1_1FullPivLU.html decompositions> are available.
+                .
                 * Eigen is thoroughly tested through its own <http://eigen.tuxfamily.org/index.php?title=Tests test suite> (over 500 executables), the standard BLAS test suite, and parts of the LAPACK test suite.
                 .
                 Eigen is elegant.
                 .
                 * The API is extremely <http://eigen.tuxfamily.org/index.php?title=API_Showcase clean and expressive> while feeling natural to C++ programmers, thanks to expression templates.
+                .
                 * Implementing an algorithm on top of Eigen feels like just copying pseudocode.
                 .
                 Eigen has good compiler support as we run our test suite against many compilers to guarantee reliability and work around any compiler bugs.
@@ -1292,6 +1300,7 @@ library
                         Data.Eigen.Matrix
                         Data.Eigen.Matrix.Mutable
                         Data.Eigen.SparseMatrix
+                        Data.Eigen.SparseMatrix.Mutable
                         Data.Eigen.Parallel
                         Data.Eigen.Internal
 
@@ -1313,15 +1322,20 @@ library
 Test-Suite test-solve
     type:               exitcode-stdio-1.0
     main-is:            test/solve.hs
-    build-depends:      base, primitive, vector, eigen
+    build-depends:      base, primitive, vector, bytestring, eigen
+
+Test-Suite test-solve-sparse
+    type:               exitcode-stdio-1.0
+    main-is:            test/solve-sparse.hs
+    build-depends:      base, primitive, vector, bytestring, eigen
 
 Test-Suite test-rank
     type:               exitcode-stdio-1.0
     main-is:            test/rank.hs
-    build-depends:      base, primitive, vector, eigen
+    build-depends:      base, primitive, vector, bytestring, eigen
 
 Test-Suite test-regression
     type:               exitcode-stdio-1.0
     main-is:            test/regression.hs
-    build-depends:      base, primitive, vector, eigen
+    build-depends:      base, primitive, vector, bytestring, eigen
 

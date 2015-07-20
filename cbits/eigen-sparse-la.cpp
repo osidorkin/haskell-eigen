@@ -292,14 +292,6 @@ RET sparse_la_rank(void* p, double* x) {
 API_SPARSE_QR(sparse_la_rank, (int code, int s, void* p, double* x), (p,x));
 
 template <class T, class M, class S>
-RET sparse_la_simplicialFactorize(void* p, void* a) {
-    ((S*)p)->simplicialfactorize(*(M*)a);
-    return 0;
-}
-API_SPARSE_LU(sparse_la_simplicialFactorize, (int code, int s, void* p, void* a), (p,a));
-
-
-template <class T, class M, class S>
 RET sparse_la_setSymmetric(void* p, int x) {
     ((S*)p)->isSymmetric(x);
     return 0;

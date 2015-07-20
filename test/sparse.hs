@@ -14,5 +14,10 @@ main = do
     putStrLn "Here is the norm of matrix A:" >> print (norm a)
     putStrLn "Here is the nonZeros of matrix A:" >> print (nonZeros a)
     putStrLn "Here is the A * transpose B:" >> print (a * transpose b)
-    putStrLn "Here is the pruned matrix A with a huge reference" >> print (pruned 10 a)
+    putStrLn "Here is the pruned matrix A with a huge reference" >> print (pruned 1e20 a)
+
+    print $ values a'
+    print $ innerIndices a'
+    print $ outerStarts a'
+    print $ innerNNZs a'
 
