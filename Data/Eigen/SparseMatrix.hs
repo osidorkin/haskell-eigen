@@ -23,6 +23,8 @@ module Data.Eigen.SparseMatrix (
     -- * Matrix conversions
     fromList,
     toList,
+    fromVector,
+    toVector,
     fromDenseList,
     toDenseList,
     fromMatrix,
@@ -280,10 +282,13 @@ mul = _binop I.sparse_mul mk
 
 -- | Construct sparse matrix of given size from the list of triplets (row, col, val)
 fromList :: I.Elem a b => Int -> Int -> [(Int, Int, a)] -> SparseMatrix a b
-fromList rows cols tris = I.performIO $ VS.unsafeWith vs $ \p -> alloca $ \pq -> do
-    I.call $ I.sparse_fromList (I.cast rows) (I.cast cols) p (I.cast $ VS.length vs) pq
+fromList rows cols = fromVector rows cols . VS.fromList . P.map I.cast
+
+-- | Construct sparse matrix of given size from the storable vector of triplets (row, col, val)
+fromVector :: I.Elem a b => Int -> Int -> VS.Vector (I.CTriplet b) -> SparseMatrix a b
+fromVector rows cols tris = I.performIO $ VS.unsafeWith tris $ \p -> alloca $ \pq -> do
+    I.call $ I.sparse_fromList (I.cast rows) (I.cast cols) p (I.cast $ VS.length tris) pq
     peek pq >>= mk
-    where vs = VS.fromList $ P.map I.cast tris
 
 -- | Convert sparse matrix to the list of triplets (row, col, val). Compressed elements will not be included
 toList :: I.Elem a b => SparseMatrix a b -> [(Int, Int, a)]
@@ -332,24 +337,17 @@ toMatrix m1@(SparseMatrix fp) = I.performIO $ do
 
 -- | Encode the sparse matrix as a lazy byte string
 encode :: I.Elem a b => SparseMatrix a b -> BSL.ByteString
-encode m@(SparseMatrix fp) = I.performIO $ do
-    let size = nonZeros m
-    tris <- VSM.new size
-    withForeignPtr fp $ \p ->
-        VSM.unsafeWith tris $ \q ->
-            I.call $ I.sparse_toList p q (I.cast size)
-    tris <- VS.unsafeFreeze tris
-    let
-        tri@(I.CTriplet _ _ val) = VS.head tris
-
-    return $ BSL.fromChunks [
+encode m = BSL.fromChunks [
         encodeInt (I.magicCode val),
         encodeInt (I.cast $ rows m),
         encodeInt (I.cast $ cols m),
-        encodeInt (I.cast $ size),
+        encodeInt (I.cast $ VS.length tris),
         let (fp, fs) = VS.unsafeToForeignPtr0 tris in BSI.PS (castForeignPtr fp) 0 (fs * sizeOf tri)]
 
     where
+        tris = toVector m
+        tri@(I.CTriplet _ _ val) = VS.head tris
+
         encodeInt :: CInt -> BS.ByteString
         encodeInt x = BSI.unsafeCreate (sizeOf x) $ (`poke` x) . castPtr
 
@@ -364,7 +362,7 @@ decode st = I.performIO $ do
 
     st <- I.openStream st
 
-    code <- I.decodeInt <$> I.readStream st I.intSize
+    code <- I.readInt st
     when (code /= I.magicCode val) $
         fail "SparseMatrix.decode: wrong matrix type"
 
