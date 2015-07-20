@@ -283,18 +283,21 @@ fromList :: I.Elem a b => Int -> Int -> [(Int, Int, a)] -> SparseMatrix a b
 fromList rows cols tris = I.performIO $ VS.unsafeWith vs $ \p -> alloca $ \pq -> do
     I.call $ I.sparse_fromList (I.cast rows) (I.cast cols) p (I.cast $ VS.length vs) pq
     peek pq >>= mk
-    where vs = VS.fromList $ P.map (\(row,col,val) -> I.CTriplet (I.cast row) (I.cast col) (I.cast val)) tris
+    where vs = VS.fromList $ P.map I.cast tris
 
 -- | Convert sparse matrix to the list of triplets (row, col, val). Compressed elements will not be included
 toList :: I.Elem a b => SparseMatrix a b -> [(Int, Int, a)]
-toList m@(SparseMatrix fp) = I.performIO $ do
+toList = P.map I.cast . VS.toList . toVector
+
+-- | Convert sparse matrix to the storable vector of triplets (row, col, val). Compressed elements will not be included
+toVector :: I.Elem a b => SparseMatrix a b -> VS.Vector (I.CTriplet b)
+toVector m@(SparseMatrix fp) = I.performIO $ do
     let size = nonZeros m
     tris <- VSM.new size
     withForeignPtr fp $ \p ->
         VSM.unsafeWith tris $ \q ->
             I.call $ I.sparse_toList p q (I.cast size)
-    let f (I.CTriplet row col val) = (I.cast row, I.cast col, I.cast val)
-    P.map f . VS.toList <$> VS.unsafeFreeze tris
+    VS.unsafeFreeze tris
 
 -- | Construct sparse matrix of two-dimensional list of values. Matrix dimensions will be detected automatically. Zero values will be compressed.
 fromDenseList :: (I.Elem a b, Eq a) => [[a]] -> SparseMatrix a b

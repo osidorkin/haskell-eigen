@@ -77,6 +77,9 @@ instance Cast (Complex Float) (CComplex CFloat) where; cast (x :+ y) = CComplex 
 instance Cast (CComplex CDouble) (Complex Double) where; cast (CComplex x y) = cast x :+ cast y
 instance Cast (Complex Double) (CComplex CDouble) where; cast (x :+ y) = CComplex (cast x) (cast y)
 
+instance Cast a b => Cast (CTriplet a) (Int, Int, b) where; cast (CTriplet x y z) = (cast x, cast y, cast z)
+instance Cast a b => Cast (Int, Int, a) (CTriplet b) where; cast (x,y,z) = CTriplet (cast x) (cast y) (cast z)
+
 intSize :: Int
 intSize = sizeOf (undefined :: CInt)
 
