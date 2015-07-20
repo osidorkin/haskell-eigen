@@ -106,8 +106,9 @@ import qualified Data.List as L
 import Prelude hiding (null, sum, all, any, map, filter)
 import Data.Tuple
 import Data.Complex hiding (conjugate)
+import Data.Binary hiding (encode, decode)
+import qualified Data.Binary as B
 import Foreign.Ptr
-import Foreign.ForeignPtr
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Storable
@@ -125,7 +126,6 @@ import qualified Data.Vector.Storable.Mutable as VSM
 import qualified Data.Eigen.Internal as I
 import qualified Data.Eigen.Matrix.Mutable as M
 import qualified Data.ByteString.Lazy as BSL
-import qualified Data.ByteString.Internal as BSI
 
 -- | Matrix to be used in pure computations, uses column major memory layout, features copy-free FFI with C++ <http://eigen.tuxfamily.org Eigen> library.
 
@@ -157,6 +157,26 @@ instance I.Elem a b => Num (Matrix a b) where
     signum = map signum
     abs = map abs
     negate = map negate
+
+-- | Matrix binary serialization
+instance I.Elem a b => Binary (Matrix a b) where
+    put (Matrix rows cols vals) = do
+        put $ I.magicCode (undefined :: b)
+        put rows
+        put cols
+        put vals
+
+    get = do
+        get >>= (`when` fail "wrong matrix type") . (/= I.magicCode (undefined :: b))
+        Matrix <$> get <*> get <*> get
+
+-- | Encode the matrix as a lazy byte string
+encode :: I.Elem a b => Matrix a b -> BSL.ByteString
+encode = B.encode
+
+-- | Decode matrix from the lazy byte string
+decode :: I.Elem a b => BSL.ByteString -> Matrix a b
+decode = B.decode
 
 -- | Empty 0x0 matrix
 {-# INLINE empty #-}
@@ -556,31 +576,6 @@ unsafeWith :: I.Elem a b => Matrix a b -> (Ptr b -> CInt -> CInt -> IO c) -> IO 
 unsafeWith m@(Matrix rows cols vals) f
     | not (valid m) = fail "Matrix.unsafeWith: matrix layout is invalid"
     | otherwise = VS.unsafeWith vals $ \p -> f p (I.cast rows) (I.cast cols)
-
--- | Encode the matrix as a lazy byte string
-encode :: I.Elem a b => Matrix a b -> BSL.ByteString
-encode m@(Matrix rows cols vals)
-    | valid m = BSL.fromChunks [
-            I.encodeInt (I.magicCode $ VS.head vals),
-            I.encodeInt (I.cast rows),
-            I.encodeInt (I.cast cols),
-            let (fp, fs) = VS.unsafeToForeignPtr0 vals in BSI.PS (castForeignPtr fp) 0 (fs * sizeOf (VS.head vals))]
-    | otherwise = error "Matrix.encode: matrix layout is invalid"
-
--- | Decode matrix from the lazy byte string
-decode :: I.Elem a b => BSL.ByteString -> Matrix a b
-decode st = Matrix rows cols vals where
-    (rows, cols, vals) = I.performIO $ do
-        st <- I.openStream st
-        code <- I.readInt st
-        when (code /= I.magicCode (VS.head vals)) $
-            fail "Matrix.decode: wrong matrix type"
-        rows <- I.cast <$> I.readInt st
-        cols <- I.cast <$> I.readInt st
-        BSI.PS fp fo _ <- I.readStream st (rows * cols * sizeOf (VS.head vals))
-        I.closeStream st
-        return (rows, cols, VS.unsafeFromForeignPtr0 (I.plusForeignPtr fp fo) (rows * cols))
-
 
 {-# INLINE _prop #-}
 _prop :: I.Elem a b => (Ptr b -> Ptr b -> CInt -> CInt -> IO CString) -> Matrix a b -> a

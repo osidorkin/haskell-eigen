@@ -81,6 +81,7 @@ library
     build-depends:      base >= 3 && < 5,
                         vector >= 0.5 && < 0.12,
                         primitive >= 0.1 && < 0.7,
+                        binary,
                         bytestring,
                         transformers >= 0.3
 
@@ -95,19 +96,19 @@ library
 Test-Suite test-solve
     type:               exitcode-stdio-1.0
     main-is:            test/solve.hs
-    build-depends:      base, primitive, vector, bytestring, eigen
+    build-depends:      base, primitive, vector, bytestring, binary, eigen
 
 Test-Suite test-solve-sparse
     type:               exitcode-stdio-1.0
     main-is:            test/solve-sparse.hs
-    build-depends:      base, primitive, vector, bytestring, eigen
+    build-depends:      base, primitive, vector, bytestring, binary, eigen
 
 Test-Suite test-rank
     type:               exitcode-stdio-1.0
     main-is:            test/rank.hs
-    build-depends:      base, primitive, vector, bytestring, eigen
+    build-depends:      base, primitive, vector, bytestring, binary, eigen
 
 Test-Suite test-regression
     type:               exitcode-stdio-1.0
     main-is:            test/regression.hs
-    build-depends:      base, primitive, vector, bytestring, eigen
+    build-depends:      base, primitive, vector, bytestring, binary, eigen

@@ -64,6 +64,8 @@ import qualified Prelude as P
 import Prelude hiding (map)
 import qualified Data.List as L
 import Data.Complex
+import Data.Binary hiding (encode, decode)
+import qualified Data.Binary as B
 import Foreign.C.Types
 import Foreign.C.String
 import Foreign.Storable
@@ -82,9 +84,7 @@ import qualified Foreign.Concurrent as FC
 import qualified Data.Eigen.Internal as I
 import qualified Data.Vector.Storable as VS
 import qualified Data.Vector.Storable.Mutable as VSM
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
-import qualified Data.ByteString.Internal as BSI
 
 {-| A versatible sparse matrix representation.
 
@@ -163,6 +163,26 @@ instance I.Elem a b => Num (SparseMatrix a b) where
     signum = map signum
     abs = map abs
     negate = map negate
+
+instance I.Elem a b => Binary (SparseMatrix a b) where
+    put m = do
+        put $ I.magicCode (undefined :: b)
+        put $ rows m
+        put $ cols m
+        put $ toVector m
+
+    get = do
+        get >>= (`when` fail "wrong matrix type") . (/= I.magicCode (undefined :: b))
+        fromVector <$> get <*> get <*> get
+
+-- | Encode the sparse matrix as a lazy byte string
+encode :: I.Elem a b => SparseMatrix a b -> BSL.ByteString
+encode = B.encode
+
+
+-- | Decode sparse matrix from the lazy byte string
+decode :: I.Elem a b => BSL.ByteString -> SparseMatrix a b
+decode = B.decode
 
 -- | Not exposed, For internal use donly
 map :: I.Elem a b => (a -> a) -> SparseMatrix a b -> SparseMatrix a b
@@ -334,51 +354,6 @@ toMatrix m1@(SparseMatrix fp) = I.performIO $ do
         withForeignPtr fp $ \pm1 ->
             I.call $ I.sparse_toMatrix pm1 vals rows cols
     M.unsafeFreeze m0
-
--- | Encode the sparse matrix as a lazy byte string
-encode :: I.Elem a b => SparseMatrix a b -> BSL.ByteString
-encode m = BSL.fromChunks [
-        encodeInt (I.magicCode val),
-        encodeInt (I.cast $ rows m),
-        encodeInt (I.cast $ cols m),
-        encodeInt (I.cast $ VS.length tris),
-        let (fp, fs) = VS.unsafeToForeignPtr0 tris in BSI.PS (castForeignPtr fp) 0 (fs * sizeOf tri)]
-
-    where
-        tris = toVector m
-        tri@(I.CTriplet _ _ val) = VS.head tris
-
-        encodeInt :: CInt -> BS.ByteString
-        encodeInt x = BSI.unsafeCreate (sizeOf x) $ (`poke` x) . castPtr
-
-
--- | Decode sparse matrix from the lazy byte string
-decode :: forall a b . I.Elem a b => BSL.ByteString -> SparseMatrix a b
-decode st = I.performIO $ do
-    let
-        val = undefined :: b
-        tri = undefined :: I.CTriplet b
-        triSize = sizeOf tri
-
-    st <- I.openStream st
-
-    code <- I.readInt st
-    when (code /= I.magicCode val) $
-        fail "SparseMatrix.decode: wrong matrix type"
-
-    rows <- I.readInt st
-    cols <- I.readInt st
-    size <- I.readInt st
-
-    BSI.PS fp fo _ <- I.readStream st (I.cast size * triSize)
-
-    I.closeStream st
-
-    let tris = VS.unsafeFromForeignPtr0 (I.plusForeignPtr fp fo) (I.cast size)
-
-    VS.unsafeWith tris $ \p -> alloca $ \pq -> do
-        I.call $ I.sparse_fromList rows cols p size pq
-        peek pq >>= mk
 
 -- | Yield an immutable copy of the mutable matrix
 freeze :: I.Elem a b => SMM.IOSparseMatrix a b -> IO (SparseMatrix a b)

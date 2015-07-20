@@ -1,4 +1,5 @@
 {-# OPTIONS_HADDOCK hide #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 {-# LANGUAGE CPP #-} 
 {-# LANGUAGE EmptyDataDecls  #-}
@@ -24,6 +25,9 @@ import System.IO.Unsafe
 import Data.Complex
 import Data.IORef
 import Data.Bits
+import Data.Binary
+import Data.Binary.Get
+import Data.Binary.Put
 import qualified Data.Vector.Storable as VS
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
@@ -41,6 +45,18 @@ class Cast a b where
 
 -- | Complex number for FFI with the same memory layout as std::complex\<T\>
 data CComplex a = CComplex !a !a
+
+instance Storable a => Binary (VS.Vector a) where
+    put vs = put (BS.length bs) >> putByteString bs where
+        (fp,fs) = VS.unsafeToForeignPtr0 vs
+        es = sizeOf (VS.head vs)
+        bs = BSI.fromForeignPtr (castForeignPtr fp) 0 (fs * es)
+        
+    get = get >>= getByteString >>= \bs -> let
+        (fp,fo,fs) = BSI.toForeignPtr bs
+        es = sizeOf (VS.head vs)
+        vs = VS.unsafeFromForeignPtr0 (plusForeignPtr fp fo) (fs `div` es)
+        in return vs
 
 instance Storable a => Storable (CComplex a) where
     sizeOf _ = sizeOf (undefined :: a) * 2
@@ -124,8 +140,14 @@ instance Code CDouble where; code _ = 1
 instance Code (CComplex CFloat) where; code _ = 2
 instance Code (CComplex CDouble) where; code _ = 3
 
-magicCode :: Code a => a -> CInt
-magicCode x = code x `xor` 0x45696730
+newtype MagicCode = MagicCode CInt deriving Eq
+
+instance Binary MagicCode where
+    put (MagicCode code) = putWord32be $ fromIntegral code
+    get = MagicCode . fromIntegral <$> getWord32be
+
+magicCode :: Code a => a -> MagicCode
+magicCode x = MagicCode (code x `xor` 0x45696730)
 
 #let api1 name, args = "foreign import ccall \"eigen_%s\" c_%s :: CInt -> %s\n%s :: forall b . Code b => %s\n%s = c_%s (code (undefined :: b))", #name, #name, args, #name, args, #name, #name
 
