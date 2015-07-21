@@ -24,13 +24,6 @@ using namespace Eigen;
 
 extern "C" {
 
-enum Solver {
-	ConjugateGradient,
-	BiCGSTAB,
-	SparseLU,
-	SparseQR
-};
-
 const char* eigen_sparse_la_newSolver(int, int, void**);
 const char* eigen_sparse_la_freeSolver(int, int, void*);
 const char* eigen_sparse_la_factorize(int, int, void*, void*);

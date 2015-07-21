@@ -160,9 +160,9 @@ instance I.Elem a b => Num (SparseMatrix a b) where
     (+) = add
     (-) = sub
     fromInteger x = fromList 1 1 [(0,0,fromInteger x)]
-    signum = map signum
-    abs = map abs
-    negate = map negate
+    signum = _map signum
+    abs = _map abs
+    negate = _map negate
 
 instance I.Elem a b => Binary (SparseMatrix a b) where
     put m = do
@@ -183,13 +183,6 @@ encode = B.encode
 -- | Decode sparse matrix from the lazy byte string
 decode :: I.Elem a b => BSL.ByteString -> SparseMatrix a b
 decode = B.decode
-
--- | Not exposed, For internal use donly
-map :: I.Elem a b => (a -> a) -> SparseMatrix a b -> SparseMatrix a b
-map f m = fromList (rows m) (cols m) . P.map (\(r,c,v) -> (r,c,f v)) . toList $ m
-
-mk :: I.Elem a b => Ptr (I.CSparseMatrix a b) -> IO (SparseMatrix a b)
-mk p = SparseMatrix <$> FC.newForeignPtr p (I.call $ I.sparse_free p)
 
 -- | Stores the coefficient values of the non-zeros.
 values :: I.Elem a b => SparseMatrix a b -> VS.Vector b
@@ -246,7 +239,7 @@ blueNorm = _unop I.sparse_blueNorm (return . I.cast)
 
 -- | Extract rectangular block from sparse matrix defined by startRow startCol blockRows blockCols
 block :: I.Elem a b => Int -> Int -> Int -> Int -> SparseMatrix a b -> SparseMatrix a b
-block row col rows cols = _unop (\p pq -> I.sparse_block p (I.cast row) (I.cast col) (I.cast rows) (I.cast cols) pq) mk
+block row col rows cols = _unop (\p pq -> I.sparse_block p (I.cast row) (I.cast col) (I.cast rows) (I.cast cols) pq) _mk
 
 -- | Number of non-zeros elements in the sparse matrix
 nonZeros :: I.Elem a b => SparseMatrix a b -> Int
@@ -254,11 +247,11 @@ nonZeros = _unop I.sparse_nonZeros (return . I.cast)
 
 -- | The matrix in the compressed format
 compress :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b
-compress = _unop I.sparse_makeCompressed mk
+compress = _unop I.sparse_makeCompressed _mk
 
 -- | The matrix in the uncompressed mode
 uncompress :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b
-uncompress = _unop I.sparse_uncompress mk
+uncompress = _unop I.sparse_uncompress _mk
 
 -- | Is this in compressed form?
 compressed :: I.Elem a b => SparseMatrix a b -> Bool
@@ -272,33 +265,33 @@ innerSize = _unop I.sparse_innerSize (return . I.cast)
 outerSize :: I.Elem a b => SparseMatrix a b -> Int
 outerSize = _unop I.sparse_outerSize (return . I.cast)
 
--- | Suppresses all nonzeros which are much smaller than reference under the tolerence epsilon
+-- | Suppresses all nonzeros which are much smaller than reference under the tolerence @epsilon@
 pruned :: I.Elem a b => a -> SparseMatrix a b -> SparseMatrix a b
-pruned r = _unop (\p pq -> alloca $ \pr -> poke pr (I.cast r) >> I.sparse_prunedRef p pr pq) mk
+pruned r = _unop (\p pq -> alloca $ \pr -> poke pr (I.cast r) >> I.sparse_prunedRef p pr pq) _mk
 
 -- | Multiply matrix on a given scalar
 scale :: I.Elem a b => a -> SparseMatrix a b -> SparseMatrix a b
-scale x = _unop (\p pq -> alloca $ \px -> poke px (I.cast x) >> I.sparse_scale p px pq) mk
+scale x = _unop (\p pq -> alloca $ \px -> poke px (I.cast x) >> I.sparse_scale p px pq) _mk
 
 -- | Transpose of the sparse matrix
 transpose :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b
-transpose = _unop I.sparse_transpose mk
+transpose = _unop I.sparse_transpose _mk
 
 -- | Adjoint of the sparse matrix
 adjoint :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b
-adjoint = _unop I.sparse_adjoint mk
+adjoint = _unop I.sparse_adjoint _mk
 
 -- | Adding two sparse matrices by adding the corresponding entries together. You can use @(+)@ function as well.
 add :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b -> SparseMatrix a b
-add = _binop I.sparse_add mk
+add = _binop I.sparse_add _mk
 
 -- | Subtracting two sparse matrices by subtracting the corresponding entries together. You can use @(-)@ function as well.
 sub :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b -> SparseMatrix a b
-sub = _binop I.sparse_sub mk
+sub = _binop I.sparse_sub _mk
 
 -- | Matrix multiplication. You can use @(*)@ function as well.
 mul :: I.Elem a b => SparseMatrix a b -> SparseMatrix a b -> SparseMatrix a b
-mul = _binop I.sparse_mul mk
+mul = _binop I.sparse_mul _mk
 
 -- | Construct sparse matrix of given size from the list of triplets (row, col, val)
 fromList :: I.Elem a b => Int -> Int -> [(Int, Int, a)] -> SparseMatrix a b
@@ -308,7 +301,7 @@ fromList rows cols = fromVector rows cols . VS.fromList . P.map I.cast
 fromVector :: I.Elem a b => Int -> Int -> VS.Vector (I.CTriplet b) -> SparseMatrix a b
 fromVector rows cols tris = I.performIO $ VS.unsafeWith tris $ \p -> alloca $ \pq -> do
     I.call $ I.sparse_fromList (I.cast rows) (I.cast cols) p (I.cast $ VS.length tris) pq
-    peek pq >>= mk
+    peek pq >>= _mk
 
 -- | Convert sparse matrix to the list of triplets (row, col, val). Compressed elements will not be included
 toList :: I.Elem a b => SparseMatrix a b -> [(Int, Int, a)]
@@ -344,7 +337,7 @@ fromMatrix :: I.Elem a b => M.Matrix a b -> SparseMatrix a b
 fromMatrix m1 = I.performIO $ alloca $ \pm0 ->
     M.unsafeWith m1 $ \vals rows cols -> do
         I.call $ I.sparse_fromMatrix vals rows cols pm0
-        peek pm0 >>= mk
+        peek pm0 >>= _mk
 
 -- | Construct dense matrix from sparse matrix
 toMatrix :: I.Elem a b => SparseMatrix a b -> M.Matrix a b
@@ -402,3 +395,11 @@ _clone fp = withForeignPtr fp $ \p -> alloca $ \pq -> do
     I.call $ I.sparse_clone p pq
     q <- peek pq
     FC.newForeignPtr q $ I.call $ I.sparse_free q
+
+_map :: I.Elem a b => (a -> a) -> SparseMatrix a b -> SparseMatrix a b
+_map f m = fromVector (rows m) (cols m) . VS.map g . toVector $ m where
+    g (I.CTriplet r c v) = I.CTriplet r c $ I.cast $ f $ I.cast v
+
+_mk :: I.Elem a b => Ptr (I.CSparseMatrix a b) -> IO (SparseMatrix a b)
+_mk p = SparseMatrix <$> FC.newForeignPtr p (I.call $ I.sparse_free p)
+

@@ -23,14 +23,12 @@ import Control.Applicative
 #endif
 import System.IO.Unsafe
 import Data.Complex
-import Data.IORef
 import Data.Bits
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.Vector.Storable as VS
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Internal as BSI
 
 class (Num a, Cast a b, Cast b a, Storable b, Code b) => Elem a b | a -> b where
@@ -42,9 +40,6 @@ instance Elem (Complex Double) (CComplex CDouble) where
 
 class Cast a b where
     cast :: a -> b
-
--- | Complex number for FFI with the same memory layout as std::complex\<T\>
-data CComplex a = CComplex !a !a
 
 instance Storable a => Binary (VS.Vector a) where
     put vs = put (BS.length bs) >> putByteString bs where
@@ -58,6 +53,9 @@ instance Storable a => Binary (VS.Vector a) where
         vs = VS.unsafeFromForeignPtr0 (plusForeignPtr fp fo) (fs `div` es)
         in return vs
 
+-- | Complex number for FFI with the same memory layout as std::complex\<T\>
+data CComplex a = CComplex !a !a deriving Show
+
 instance Storable a => Storable (CComplex a) where
     sizeOf _ = sizeOf (undefined :: a) * 2
     alignment _ = alignment (undefined :: a)
@@ -68,7 +66,7 @@ instance Storable a => Storable (CComplex a) where
         <$> peekElemOff (castPtr p) 0
         <*> peekElemOff (castPtr p) 1
 
-data CTriplet a = CTriplet !CInt !CInt !a
+data CTriplet a = CTriplet !CInt !CInt !a deriving Show
 
 instance Storable a => Storable (CTriplet a) where
     sizeOf _ = sizeOf (undefined :: a) + sizeOf (undefined :: CInt) * 2
@@ -216,6 +214,7 @@ magicCode x = MagicCode (code x `xor` 0x45696730)
 #api2 sparse_setIdentity,   "CSparseMatrixPtr a b -> IO CString"
 #api2 sparse_reserve,       "CSparseMatrixPtr a b -> CInt -> IO CString"
 #api2 sparse_resize,        "CSparseMatrixPtr a b -> CInt -> CInt -> IO CString"
+
 #api2 sparse_conservativeResize,    "CSparseMatrixPtr a b -> CInt -> CInt -> IO CString"
 #api2 sparse_compressInplace,       "CSparseMatrixPtr a b -> IO CString"
 #api2 sparse_uncompressInplace,     "CSparseMatrixPtr a b -> IO CString"
@@ -248,22 +247,3 @@ magicCode x = MagicCode (code x `xor` 0x45696730)
 #api3 sparse_la_logAbsDeterminant,  "CSolverPtr a b -> Ptr b -> IO CString"
 #api3 sparse_la_absDeterminant,     "CSolverPtr a b -> Ptr b -> IO CString"
 #api3 sparse_la_signDeterminant,    "CSolverPtr a b -> Ptr b -> IO CString"
-
-
-openStream :: BSL.ByteString -> IO (IORef BSL.ByteString)
-openStream = newIORef
-
-readStream :: IORef BSL.ByteString -> Int -> IO BS.ByteString
-readStream ref size = readIORef ref >>= \a ->
-    let (b,c) = BSL.splitAt (fromIntegral size) a
-    in if BSL.length b /= fromIntegral size
-        then fail "readStream: stream exhausted"
-        else do
-            writeIORef ref c
-            return . BS.concat . BSL.toChunks $ b
-
-closeStream :: IORef BSL.ByteString -> IO ()
-closeStream ref = BSL.null <$> readIORef ref >>= (`unless` fail "closeStream: stream underrun")
-
-readInt :: IORef BSL.ByteString -> IO CInt
-readInt st = decodeInt <$> readStream st intSize

@@ -1,5 +1,5 @@
 name:           eigen
-version:        2.1.4
+version:        2.1.5
 homepage:       https://github.com/osidorkin/haskell-eigen
 synopsis:       Eigen C++ library (linear algebra: matrices, sparse matrices, vectors, numerical solvers).
 description:    This module provides Haskell binding for <http://eigen.tuxfamily.org/ Eigen C++ library>.
@@ -1323,20 +1323,20 @@ library
 Test-Suite test-solve
     type:               exitcode-stdio-1.0
     main-is:            test/solve.hs
-    build-depends:      base, primitive, vector, bytestring, binary, eigen
+    build-depends:      base, primitive, vector, bytestring, transformers, binary, eigen
 
 Test-Suite test-solve-sparse
     type:               exitcode-stdio-1.0
     main-is:            test/solve-sparse.hs
-    build-depends:      base, primitive, vector, bytestring, binary, eigen
+    build-depends:      base, primitive, vector, bytestring, transformers, mtl, binary, eigen
 
 Test-Suite test-rank
     type:               exitcode-stdio-1.0
     main-is:            test/rank.hs
-    build-depends:      base, primitive, vector, bytestring, binary, eigen
+    build-depends:      base, primitive, vector, bytestring, transformers, binary, eigen
 
 Test-Suite test-regression
     type:               exitcode-stdio-1.0
     main-is:            test/regression.hs
-    build-depends:      base, primitive, vector, bytestring, binary, eigen
+    build-depends:      base, primitive, vector, bytestring, transformers, binary, eigen
 
