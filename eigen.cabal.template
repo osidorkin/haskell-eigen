@@ -1,5 +1,5 @@
 name:           eigen
-version:        2.1.5
+version:        2.1.6
 homepage:       https://github.com/osidorkin/haskell-eigen
 synopsis:       Eigen C++ library (linear algebra: matrices, sparse matrices, vectors, numerical solvers).
 description:    This module provides Haskell binding for <http://eigen.tuxfamily.org/ Eigen C++ library>.
