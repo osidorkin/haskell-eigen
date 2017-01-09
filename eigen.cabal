@@ -1318,7 +1318,13 @@ library
                         cbits/eigen-sparse.cpp
                         cbits/eigen-la.cpp
                         cbits/eigen-sparse-la.cpp
-    extra-libraries:    stdc++
+   if os(windows)
+     if arch(x86_64)
+       extra-libraries: stdc++-6 gcc_s_seh-1
+     else
+       extra-libraries: stdc++-6 gcc_s_dw2-1
+   else
+     extra-libraries:   stdc++
 
 Test-Suite test-solve
     type:               exitcode-stdio-1.0
