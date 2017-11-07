@@ -50,7 +50,7 @@ instance Storable a => Binary (VS.Vector a) where
     get = get >>= getByteString >>= \bs -> let
         (fp,fo,fs) = BSI.toForeignPtr bs
         es = sizeOf (VS.head vs)
-        vs = VS.unsafeFromForeignPtr0 (plusForeignPtr fp fo) (fs `div` es)
+        vs = VS.unsafeFromForeignPtr0 (Data.Eigen.Internal.plusForeignPtr fp fo) (fs `div` es)
         in return vs
 
 -- | Complex number for FFI with the same memory layout as std::complex\<T\>

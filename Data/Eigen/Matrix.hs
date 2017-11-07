@@ -20,8 +20,8 @@ module Data.Eigen.Matrix (
     -- * Matrix conversions
     fromList,
     toList,
-    fromList2,
-    toList2,
+    fromFlatList,
+    toFlatList,
     generate,
     -- * Standard matrices and special cases
     empty,
@@ -328,8 +328,8 @@ toList m@(Matrix rows cols vals)
     | otherwise = [[I.cast $ vals `VS.unsafeIndex` (col * rows + row) | col <- [0..pred cols]] | row <- [0..pred rows]]
 
 -- | Build matrix of given dimensions and values from given list split on rows. Invalid list length results in error.
-fromList2 :: I.Elem a b => Int -> Int -> [a] -> Matrix a b
-fromList2 rows cols list
+fromFlatList :: I.Elem a b => Int -> Int -> [a] -> Matrix a b
+fromFlatList rows cols list
     | not (rows * cols == (length list)) = error $ concat ["cannot construct ", show rows, "x", show cols, " matrix from ", show $ length list, " values"]
     | otherwise = Matrix rows cols vals where
         vals = VS.create $ do
@@ -339,8 +339,8 @@ fromList2 rows cols list
             return vm
 
 -- | Convert matrix to a list by concatenating rows
-toList2 :: I.Elem a b => Matrix a b -> [a]
-toList2 m@(Matrix rows cols vals)
+toFlatList :: I.Elem a b => Matrix a b -> [a]
+toFlatList m@(Matrix rows cols vals)
     | not (valid m) = error "matrix is not valid"
     | otherwise = [I.cast $ vals `VS.unsafeIndex` (col * rows + row) | row <- [0..pred rows], col <- [0..pred cols]]
 
