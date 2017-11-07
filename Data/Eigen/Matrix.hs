@@ -20,6 +20,8 @@ module Data.Eigen.Matrix (
     -- * Matrix conversions
     fromList,
     toList,
+    fromList2,
+    toList2,
     generate,
     -- * Standard matrices and special cases
     empty,
@@ -324,6 +326,23 @@ toList :: I.Elem a b => Matrix a b -> [[a]]
 toList m@(Matrix rows cols vals)
     | not (valid m) = error "matrix is not valid"
     | otherwise = [[I.cast $ vals `VS.unsafeIndex` (col * rows + row) | col <- [0..pred cols]] | row <- [0..pred rows]]
+
+-- | Build matrix of given dimensions and values from given list split on rows. Invalid list length results in error.
+fromList2 :: I.Elem a b => Int -> Int -> [a] -> Matrix a b
+fromList2 rows cols list
+    | not (rows * cols == (length list)) = error $ concat ["cannot construct ", show rows, "x", show cols, " matrix from ", show $ length list, " values"]
+    | otherwise = Matrix rows cols vals where
+        vals = VS.create $ do
+            vm <- VSM.replicate (rows * cols) (I.cast (0 `asTypeOf` (head list)))
+            forM_ (zip [(col * rows + row) | row <- [0..pred rows], col <- [0..pred cols]] list) $ \(idx, val) ->
+                VSM.write vm idx (I.cast val)
+            return vm
+
+-- | Convert matrix to a list by concatenating rows
+toList2 :: I.Elem a b => Matrix a b -> [a]
+toList2 m@(Matrix rows cols vals)
+    | not (valid m) = error "matrix is not valid"
+    | otherwise = [I.cast $ vals `VS.unsafeIndex` (col * rows + row) | row <- [0..pred rows], col <- [0..pred cols]]
 
 -- | [generate rows cols (λ row col -> val)]
 --
