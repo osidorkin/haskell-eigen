@@ -1,3 +1,5 @@
+> this package is maintaned by @chessai at https://github.com/chessai/eigen now
+
 haskell-eigen
 =============
 
