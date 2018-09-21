@@ -1,4 +1,4 @@
-> this package is maintaned by @chessai at https://github.com/chessai/eigen now
+> this repo is in archive status. eigen package is maintaned by @chessai at https://github.com/chessai/eigen now.
 
 haskell-eigen
 =============
