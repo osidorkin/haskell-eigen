@@ -20,6 +20,11 @@ module Data.Eigen.SparseMatrix (
     rows,
     coeff,
     (!),
+    getRow,
+    getCol,
+    getRows,
+    getCols,
+    squareSubset,
     -- * Matrix conversions
     fromList,
     toList,
@@ -29,6 +34,12 @@ module Data.Eigen.SparseMatrix (
     toDenseList,
     fromMatrix,
     toMatrix,
+    ones,
+    ident,
+    diagCol,
+    diagRow,
+    fromRows,
+    fromCols,
     -- * Matrix properties
     norm,
     squaredNorm,
@@ -37,6 +48,9 @@ module Data.Eigen.SparseMatrix (
     nonZeros,
     innerSize,
     outerSize,
+    getRowSums,
+    getColSums,
+    getSum,
     -- * Basic matrix algebra
     add,
     sub,
@@ -46,6 +60,8 @@ module Data.Eigen.SparseMatrix (
     scale,
     transpose,
     adjoint,
+    _map,
+    _imap,
     -- * Matrix representation
     compress,
     uncompress,
@@ -396,10 +412,127 @@ _clone fp = withForeignPtr fp $ \p -> alloca $ \pq -> do
     q <- peek pq
     FC.newForeignPtr q $ I.call $ I.sparse_free q
 
+-- | Map over values of a sparse matrix.
 _map :: I.Elem a b => (a -> a) -> SparseMatrix a b -> SparseMatrix a b
 _map f m = fromVector (rows m) (cols m) . VS.map g . toVector $ m where
     g (I.CTriplet r c v) = I.CTriplet r c $ I.cast $ f $ I.cast v
 
+-- | Map over values of a sparse matrix with indices.
+_imap
+    :: I.Elem a b
+    => (Int -> Int -> a -> a) -> SparseMatrix a b -> SparseMatrix a b
+_imap f m = fromVector (rows m) (cols m) . VS.map g . toVector $ m
+  where
+    g (I.CTriplet r c v) =
+        I.CTriplet r c $ I.cast $ f (fromIntegral r) (fromIntegral c) $ I.cast v
+
 _mk :: I.Elem a b => Ptr (I.CSparseMatrix a b) -> IO (SparseMatrix a b)
 _mk p = SparseMatrix <$> FC.newForeignPtr p (I.call $ I.sparse_free p)
 
+-- | Get a row of a sparse matrix.
+getRow :: I.Elem a b => Int -> SparseMatrix a b -> SparseMatrix a b
+getRow row mat = block row 0 1 m mat
+  where
+    m = cols mat
+
+-- | Get a column of a sparse matrix.
+getCol :: I.Elem a b => Int -> SparseMatrix a b -> SparseMatrix a b
+getCol col mat = block 0 col n 1 mat
+  where
+    n = rows mat
+
+-- | Get all rows of a sparse matrix.
+getRows :: I.Elem a b => SparseMatrix a b -> [SparseMatrix a b]
+getRows mat = fmap (flip getRow mat) [0 .. n - 1]
+  where
+    n = rows mat
+
+-- | Get all columns of a sparse matrix.
+getCols :: I.Elem a b => SparseMatrix a b -> [SparseMatrix a b]
+getCols mat = fmap (flip getCol mat) [0 .. m - 1]
+  where
+    m = cols mat
+
+-- | Get all row sums.
+getRowSums :: SparseMatrixXd -> SparseMatrixXd
+getRowSums = fromDenseList
+           . fmap ((:[]) . sum . fmap (\(_, _, x) -> x) . toList)
+           . getRows
+
+-- | Get all column sums.
+getColSums :: SparseMatrixXd -> SparseMatrixXd
+getColSums = fromDenseList
+           . (:[])
+           . fmap (sum . fmap (\(_, _, x) -> x) . toList)
+           . getCols
+
+-- | Get sum of matrix.
+getSum :: SparseMatrixXd -> Double
+getSum = sum . fmap (\(_, _, x) -> x) . toList
+
+-- | Get the ones vector.
+ones :: Int -> SparseMatrixXd
+ones n = transpose . fromDenseList . (:[]) . replicate n $ 1
+
+-- | Get the identity matrix.
+ident :: Int -> SparseMatrixXd
+ident n = fromList n n . zip3 [0..] [0..] . replicate n $ 1
+
+-- | Transform a column into a diagonal matrix.
+diagCol :: I.Elem a b => Int -> SparseMatrix a b -> SparseMatrix a b
+diagCol col mat =
+    fromList n m . fmap (\(i, _, v) -> (i, i, v)) . toList . getCol col $ mat
+  where
+    n = rows mat
+    m = rows mat
+
+-- | Transform a row into a diagonal matrix.
+diagRow :: I.Elem a b => Int -> SparseMatrix a b -> SparseMatrix a b
+diagRow row mat =
+    fromList n m . fmap (\(_, j, v) -> (j, j, v)) . toList . getRow row $ mat
+  where
+    n = cols mat
+    m = cols mat
+
+-- | Update the row indices of a matrix.
+updateRowIdx :: I.Elem a b => Int -> SparseMatrix a b -> SparseMatrix a b
+updateRowIdx row mat =
+    fromList n m . fmap (\(_, j, v) -> (row, j, v)) . toList $ mat
+  where
+    n = row + 1
+    m = cols mat
+
+-- | Update the column indices of a matrix.
+updateColIdx :: I.Elem a b => Int -> SparseMatrix a b -> SparseMatrix a b
+updateColIdx col mat =
+    fromList n m . fmap (\(i, _, v) -> (i, col, v)) . toList $ mat
+  where
+    n = rows mat
+    m = col + 1
+
+-- | Get a matrix from a list of rows.
+fromRows :: I.Elem a b => [SparseMatrix a b] -> SparseMatrix a b
+fromRows []   = fromList 0 0 []
+fromRows rows =
+    fromList n m . concatMap toList . zipWith updateRowIdx [0..] $ rows
+  where
+    n = length rows
+    m = maximum . fmap cols $ rows
+
+-- | Get a matrix from a list of cols.
+fromCols :: I.Elem a b => [SparseMatrix a b] -> SparseMatrix a b
+fromCols []   = fromList 0 0 []
+fromCols cols =
+    fromList n m . concatMap toList . zipWith updateColIdx [0..] $ cols
+  where
+    n = maximum . fmap rows $ cols
+    m = length cols
+
+-- | Get a subset of a square matrix.
+squareSubset :: I.Elem a b => [Int] -> SparseMatrix a b -> SparseMatrix a b
+squareSubset [] _ = fromList 0 0 []
+squareSubset idxs mat = fromCols
+                      . (\m -> fmap (flip getCol m) idxs)
+                      . fromRows
+                      . fmap (flip getRow mat)
+                      $ idxs
